@@ -184,7 +184,14 @@ function metrics() {
 /* ---------- render ---------- */
 const cv = document.getElementById("hw");
 const ctx = cv.getContext("2d");
-const tsd = new LAB.Strip(document.getElementById("tsd"));
+const tsd = new LAB.Strip(document.getElementById("tsd"), {
+  rows: [
+    { y: 1 - RAMP_JOIN / ROAD_LEN, label: "ramp joins", band: true },
+    { y: 1 - RAMP_END / ROAD_LEN, label: "lane ends", band: true },
+  ],
+  gutter: 74,
+  axisLeft: "\u2190 ~4 min ago", axisRight: "now \u2192",
+});
 let lastSample = 0;
 
 const LANE_PX = 30;
@@ -342,8 +349,7 @@ function frame(now) {
       step(h);
       if (simT - lastSample >= 0.4) {
         lastSample = simT;
-        tsd.column(cars.filter(c => c.lane === 1).map(c => ({ y: 1 - c.x / ROAD_LEN, color: LAB.speedColor(c.v, LIMIT) }))
-          .concat([{ y: 1 - RAMP_JOIN / ROAD_LEN, color: "rgba(138,133,119,0.5)" }, { y: 1 - RAMP_END / ROAD_LEN, color: "rgba(138,133,119,0.5)" }]));
+        tsd.column(cars.filter(c => c.lane === 1).map(c => ({ y: 1 - c.x / ROAD_LEN, color: LAB.speedColor(c.v, LIMIT) })));
       }
       steps++; acc -= h;
     }

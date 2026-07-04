@@ -39,7 +39,13 @@
       <div id="maphint">scroll to zoom · drag to pan</div>
     </div>
     <div id="tswrap">
-      <div id="tstitle">Time–space diagram — northbound Lamar (each dot is a car; red rows are red lights; diagonal streaks = smooth flow) <button id="tstoggle">hide</button></div>
+      <div id="tstitle"><b>Trip threads</b> — every northbound car draws a thread as it climbs from Barton Springs (bottom) to 15th (top).
+        <span class="tchip" style="background:#3d9970"></span>steep&nbsp;=&nbsp;moving ·
+        <span class="tchip" style="background:#c0392b"></span><b>flat&nbsp;=&nbsp;stuck</b> ·
+        <span class="tchip" style="background:rgba(205,60,48,0.55)"></span>stripe&nbsp;=&nbsp;that light is red ·
+        <span class="tchip" style="background:#fffdf7;border:1px solid #999"></span>the white thread is the ringed car on the map
+        <span id="tsdhover" class="dim"></span>
+        <button id="tstoggle">hide</button></div>
       <canvas id="tsd"></canvas>
     </div>
   </div>

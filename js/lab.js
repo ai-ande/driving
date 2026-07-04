@@ -69,25 +69,39 @@ LAB.drawCar = function (c, x, y, ang, lenPx, widPx, v, limit, opts = {}) {
   c.restore();
 };
 
-/* time-space strip: shift-left accumulator. yOf(item) -> 0..1, colorOf(item) -> css */
+/* time-space strip: shift-left accumulator, newest column on the right.
+   opts: { w, h, rows: [{y (0..1), label, band?}], axisLeft, axisRight }
+   rows with labels get a paper gutter on the left so positions have names. */
 LAB.Strip = class {
-  constructor(canvas, w = 640, h = 150) {
+  constructor(canvas, opts = {}) {
     this.cv = canvas;
+    this.opts = opts;
+    this.rows = opts.rows || [];
+    this.gutter = this.rows.some(r => r.label) ? (opts.gutter || 78) : 0;
     this.off = document.createElement("canvas");
-    this.off.width = w; this.off.height = h;
+    this.off.width = opts.w || 640;
+    this.off.height = opts.h || 150;
     this.o = this.off.getContext("2d");
     this.o.fillStyle = "#131a21";
-    this.o.fillRect(0, 0, w, h);
+    this.o.fillRect(0, 0, this.off.width, this.off.height);
   }
-  column(marks) { // marks: [{y (0..1), color, size?}]
+  column(marks) { // marks: [{y (0..1), color, size?, alpha?}]
     const W = this.off.width, H = this.off.height;
     this.o.drawImage(this.off, -1, 0);
     this.o.fillStyle = "#131a21";
     this.o.fillRect(W - 1, 0, 1, H);
-    for (const m of marks) {
-      this.o.fillStyle = m.color;
-      this.o.fillRect(W - 1, Math.round(m.y * (H - 2)), 1, m.size || 1);
+    for (const r of this.rows) { // landmark rows sit under the data
+      this.o.fillStyle = r.band ? "rgba(180,180,190,0.28)" : "rgba(255,255,255,0.06)";
+      this.o.fillRect(W - 1, Math.round(r.y * (H - 2)), 1, r.band ? 2 : 1);
     }
+    for (const m of marks) {
+      const size = m.size || 1.8;
+      this.o.globalAlpha = m.alpha ?? 0.92;
+      this.o.fillStyle = m.color;
+      this.o.fillRect(size > 2 ? W - 2 : W - 1, Math.round(m.y * (H - 2)) - size / 2,
+                      size > 2 ? 2 : 1, size);
+    }
+    this.o.globalAlpha = 1;
   }
   blit() {
     const dpr = window.devicePixelRatio || 1;
@@ -99,8 +113,39 @@ LAB.Strip = class {
     }
     const c = this.cv.getContext("2d");
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const G = this.gutter, H = r.height;
+    if (G) {
+      c.fillStyle = "#fffdf7";
+      c.fillRect(0, 0, G, H);
+      c.strokeStyle = "#d8d3c6";
+      c.lineWidth = 1;
+      c.beginPath(); c.moveTo(G - 0.5, 0); c.lineTo(G - 0.5, H); c.stroke();
+      c.font = "9px -apple-system, sans-serif";
+      c.textBaseline = "middle";
+      for (const row of this.rows) {
+        if (!row.label) continue;
+        const y = row.y * H;
+        c.fillStyle = "#6f6a5e";
+        c.textAlign = "right";
+        c.fillText(row.label, G - 8, y);
+        c.fillStyle = "#d8d3c6";
+        c.fillRect(G - 5, y - 0.5, 5, 1);
+      }
+    }
     c.imageSmoothingEnabled = false;
-    c.drawImage(this.off, 0, 0, r.width, r.height);
+    c.drawImage(this.off, G, 0, r.width - G, H);
+    c.font = "10px -apple-system, sans-serif";
+    c.textBaseline = "alphabetic";
+    if (this.opts.axisLeft) {
+      c.textAlign = "left";
+      c.fillStyle = "rgba(242,239,231,0.75)";
+      c.fillText(this.opts.axisLeft, G + 8, H - 9);
+    }
+    if (this.opts.axisRight) {
+      c.textAlign = "right";
+      c.fillStyle = "rgba(242,239,231,0.95)";
+      c.fillText(this.opts.axisRight, r.width - 8, H - 9);
+    }
   }
 };
 

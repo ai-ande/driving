@@ -128,7 +128,11 @@ function metrics() {
 /* ---------- render ---------- */
 const cv = document.getElementById("ring");
 const ctx = cv.getContext("2d");
-const tsd = new LAB.Strip(document.getElementById("tsd"));
+const tsd = new LAB.Strip(document.getElementById("tsd"), {
+  rows: [{ y: 0.985, label: "start line" }],
+  gutter: 64,
+  axisLeft: "\u2190 ~4 min ago", axisRight: "now \u2192",
+});
 let lastSample = 0;
 
 function render() {
@@ -238,7 +242,9 @@ function frame(now) {
       step(h);
       if (simT - lastSample >= 0.4) {
         lastSample = simT;
-        tsd.column(cars.map(c => ({ y: 1 - c.s / RING_LEN, color: LAB.speedColor(c.v, LIMIT) })));
+        tsd.column(cars.map(c => c.trained
+          ? { y: 1 - c.s / RING_LEN, color: "#fffdf7", size: 2.6, alpha: 1 }
+          : { y: 1 - c.s / RING_LEN, color: LAB.speedColor(c.v, LIMIT) }));
       }
       steps++; acc -= h;
     }

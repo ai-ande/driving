@@ -187,6 +187,21 @@ $("tstoggle").addEventListener("click", () => {
   $("tstoggle").textContent = w.classList.contains("collapsed") ? "show" : "hide";
 });
 
+// hover readout: "where and when am I pointing at?"
+$("tsd").addEventListener("mousemove", (e) => {
+  const rect = $("tsd").getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  const hover = $("tsdhover");
+  if (x < tsd.gutter + 2) { hover.textContent = ""; return; }
+  const ago = Math.round((1 - (x - tsd.gutter) / (rect.width - tsd.gutter)) * tsd.windowSec);
+  const yOff = y / rect.height * tsd.off.height;
+  const rows = [...tsd.rows].sort((a, b) => Math.abs(a.y - yOff) - Math.abs(b.y - yOff));
+  const nearest = rows[0];
+  const place = Math.abs(nearest.y - yOff) < 9 ? "at " + nearest.label : "near " + nearest.label;
+  hover.textContent = `· pointing ${place}, ${ago < 3 ? "now" : ago + " s ago"}`;
+});
+$("tsd").addEventListener("mouseleave", () => { $("tsdhover").textContent = ""; });
+
 /* ---------- metrics DOM ---------- */
 let baseline = null;
 $("pin").addEventListener("click", () => {
@@ -204,7 +219,19 @@ function renderBaseline() {
   $("bTime").textContent = "was " + fmtTime(baseline.time);
   $("bStops").textContent = "was " + (isNaN(baseline.stops) ? "–" : baseline.stops.toFixed(1));
 }
+function updateFollowed() {
+  // keep one car adopted for its whole trip; adopt the newest entrant when done
+  let f = null;
+  for (const l of sim.lamarLanes.NB) for (const c of l.cars) if (c.id === sim.followedId) f = c;
+  if (!f || f.s > sim.measureNB.s1) {
+    let best = null;
+    for (const l of sim.lamarLanes.NB) for (const c of l.cars) if (!best || c.s < best.s) best = c;
+    sim.followedId = best ? best.id : null;
+  }
+}
+
 function updateMetrics() {
+  updateFollowed();
   const m = sim.metrics();
   // measured-weekday replay: sync slider to advancing clock, show rates + validation chip
   if (sim.cfg.profileMode && sim.profile) {

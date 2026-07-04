@@ -264,6 +264,23 @@ class Renderer {
       for (const car of lane.cars) this.drawCar(lane, car, mixed);
     }
 
+    // the followed car (its thread is the white line in the diagram below)
+    if (sim.followedId != null) {
+      for (const lane of sim.lamarLanes.NB) {
+        for (const car of lane.cars) {
+          if (car.id !== sim.followedId) continue;
+          const p = lane.path.at(car.s - car.len / 2);
+          const nx = p.dy, ny = -p.dx;
+          const X = this.sx(p.x + nx * lane.offset), Y = this.sy(p.y + ny * lane.offset);
+          const rad = Math.max(7, car.len * sc * 0.9);
+          c.beginPath(); c.arc(X, Y, rad + 1.5, 0, 7);
+          c.strokeStyle = "rgba(35,48,58,0.85)"; c.lineWidth = 4; c.stroke();
+          c.beginPath(); c.arc(X, Y, rad + 1.5, 0, 7);
+          c.strokeStyle = "#fffdf7"; c.lineWidth = 2; c.stroke();
+        }
+      }
+    }
+
     // signal dots (Lamar-approach state), ring = cross state
     const SIGCOL = { g: "#2ecc71", y: "#f1c40f", r: "#e74c3c" };
     if (this.selectedKey) {
@@ -447,17 +464,30 @@ class Renderer {
   }
 }
 
-/* ---------- time-space diagram ---------- */
+/* ---------- time-space diagram: "trip threads" ---------- */
+const TSD_STEP = 0.5;   // sim-seconds per pixel column
 class TSD {
   constructor(canvas, sim) {
     this.cv = canvas; this.sim = sim;
     this.ctx = canvas.getContext("2d");
+    this.gutter = 92;
     this.off = document.createElement("canvas");
     this.off.width = 640; this.off.height = 170;
     this.octx = this.off.getContext("2d");
     this.octx.fillStyle = "#131a21";
     this.octx.fillRect(0, 0, this.off.width, this.off.height);
     this.lastSample = 0;
+    // landmark rows: the real streets, so a row means "the light at 5th"
+    const short = (n) => n.replace("Barton Springs Rd", "Barton Spr")
+      .replace("Cesar Chavez St", "C. Chavez").replace("Riverside Dr", "Riverside")
+      .replace("Toomey Rd", "Toomey").replace(" St", "");
+    this.rows = sim.controllers.map(c => ({ y: this.yOf(c.inter.sLamar), label: short(c.inter.name) }));
+    const fif = sim.geo.intersections.find(i => i.key === "fifteenth");
+    this.rows.push({ y: this.yOf(fif.sLamar), label: "15th (bridge)", dim: true });
+    const riv = sim.geo.intersections.find(i => i.key === "riverside");
+    const ces = sim.geo.intersections.find(i => i.key === "cesar");
+    this.bridgeBand = { y0: this.yOf(ces.sLamar - 38), y1: this.yOf(riv.sLamar + 55) };
+    this.windowSec = this.off.width * TSD_STEP;
   }
   yOf(s) {
     const m = this.sim.measureNB;
@@ -468,26 +498,37 @@ class TSD {
     o.drawImage(this.off, -1, 0);
     o.fillStyle = "#131a21";
     o.fillRect(W - 1, 0, 1, H);
-    // signal rows
+    // landmarks first, so they sit under the car threads:
+    o.fillStyle = "rgba(110,160,200,0.12)";               // the lake bridge
+    o.fillRect(W - 1, this.bridgeBand.y0, 1, this.bridgeBand.y1 - this.bridgeBand.y0);
+    o.fillStyle = "rgba(255,255,255,0.06)";               // faint street rows
+    for (const r of this.rows) o.fillRect(W - 1, r.y, 1, 1);
+    // red/amber stripes while that light is blocking Lamar
     for (const ctrl of sim.controllers) {
       const st = ctrl.state(sim.t, "main");
       if (st === "g") continue;
-      o.fillStyle = st === "r" ? "#c0392b" : "#a97b23";
-      o.fillRect(W - 1, this.yOf(ctrl.inter.sLamar) - 0.5, 1, 1.6);
+      o.fillStyle = st === "r" ? "rgba(205,60,48,0.5)" : "rgba(196,140,42,0.45)";
+      o.fillRect(W - 1, this.yOf(ctrl.inter.sLamar) - 1.5, 1, 3.5);
     }
-    // northbound cars
+    // every northbound car leaves a dot; consecutive dots form its trip thread
     for (const lane of sim.lamarLanes.NB) {
       for (const car of lane.cars) {
         if (car.s < sim.measureNB.s0 || car.s > sim.measureNB.s1) continue;
-        o.fillStyle = speedColor(car.v, lane.limit);
-        o.globalAlpha = 0.9;
-        o.fillRect(W - 1, this.yOf(car.s), 1, 1);
+        if (car.id === sim.followedId) {
+          o.globalAlpha = 1;
+          o.fillStyle = "#fffdf7";
+          o.fillRect(W - 2, this.yOf(car.s) - 1.5, 2, 3);
+        } else {
+          o.globalAlpha = 0.92;
+          o.fillStyle = speedColor(car.v, lane.limit);
+          o.fillRect(W - 1, this.yOf(car.s) - 0.9, 1, 1.8);
+        }
       }
     }
     o.globalAlpha = 1;
   }
   maybeSample() {
-    if (this.sim.t - this.lastSample >= 0.5) {
+    if (this.sim.t - this.lastSample >= TSD_STEP) {
       this.sample();
       this.lastSample = this.sim.t;
     }
@@ -502,7 +543,38 @@ class TSD {
     }
     const c = this.ctx;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const G = this.gutter, plotW = r.width - G, H = r.height;
+    // gutter: street names at their rows, north at the top
+    c.fillStyle = "#fffdf7";
+    c.fillRect(0, 0, G, H);
+    c.strokeStyle = "#d8d3c6";
+    c.lineWidth = 1;
+    c.beginPath(); c.moveTo(G - 0.5, 0); c.lineTo(G - 0.5, H); c.stroke();
+    const yScale = H / this.off.height;
+    c.font = "9px -apple-system, sans-serif";
+    c.textBaseline = "middle";
+    for (const row of this.rows) {
+      const y = row.y * yScale;
+      c.fillStyle = row.dim ? "#a29d90" : "#6f6a5e";
+      c.textAlign = "right";
+      c.fillText(row.label, G - 8, y);
+      c.fillStyle = "#d8d3c6";
+      c.fillRect(G - 5, y - 0.5, 5, 1);
+    }
+    c.fillStyle = "#a29d90";
+    c.textAlign = "left";
+    c.fillText("N ↑", 6, 8);
+    c.fillText("S ↓", 6, H - 8);
+    // the scrolling picture
     c.imageSmoothingEnabled = false;
-    c.drawImage(this.off, 0, 0, r.width, r.height);
+    c.drawImage(this.off, G, 0, plotW, H);
+    // time axis hints, inside the plot corners
+    c.font = "10px -apple-system, sans-serif";
+    c.textAlign = "left";
+    c.fillStyle = "rgba(242,239,231,0.75)";
+    c.fillText("← " + Math.round(this.windowSec / 60) + " min ago", G + 8, H - 9);
+    c.textAlign = "right";
+    c.fillStyle = "rgba(242,239,231,0.95)";
+    c.fillText("now →", r.width - 8, H - 9);
   }
 }
