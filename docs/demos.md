@@ -1,8 +1,9 @@
-# Demo roadmap — every claim becomes a playable proof
+# The Driving Lab — every claim becomes a playable proof
 
 Principle: no lectures. Each demo is a toy the visitor plays with, where the *discovery* is
 theirs. Sliders change one believable human behavior; the metrics and the picture do the
-arguing.
+arguing. **All six demos are built** and linked by the nav strip on every page. And one
+principle above all: when the model disagrees with the thesis, the page says so (see 05).
 
 ## v0.2 — Lamar & the Lights ✅ (this repo)
 
@@ -57,40 +58,58 @@ Next polish ideas: the city's real timing plans via public-records request ("Aus
 actual plan" preset); click-a-car "ride along" camera; per-intersection timing editors;
 turn movements; pedestrian phases; actuated (sensor) signals.
 
-## v0.2 — The Ring Road (phantom jams)
+## 02 — The Ring ✅ (`ring/`)
 
-**Claims:** #4, #5, #6 — traffic as a wave; brakes as the wave source; one driver as damper.
-Recreates the Sugiyama circle experiment: N cars, no lights, no reason to stop. Sliders for
-reaction time, following gap, anticipation; a "make one driver trained" button. Watch the
-wave be born from nothing, then watch one calm car erase it. This is the purest, most
-shareable version of the core idea — 30-second video material.
+**Claims:** #4, #5, #6 — traffic as a wave; driving style as the wave source; calm drivers
+as absorbers. Recreates the Sugiyama circle: 28 cars, no lights, no reason to stop — a
+stop-and-go wave is born from nothing within minutes (0–29 mph swings) and orbits backward,
+drawn live in a position-vs-time spiral diagram. Trained drivers act as variance-gated jam
+absorbers (they widen their cushion only when a wave approaches, so they never destabilize
+smooth flow). Measured dose-response: **4 of 28 trained cuts hard braking ~65% and speed
+swing ~32%**; the full fleet is glass-smooth; below ~19 cars the ring can't jam at all.
+Calibrated against the Stern 2018 field experiment (variance/fuel reduction, not magic
+erasure) — the honest version of the one-driver story.
 
-## v0.3 — The Merge (on-ramp / lane drop)
+## 03 — The Merge ✅ (`merge/`)
 
-**Claims:** traffic source #1, belief #3 mechanics.
-A freeway on-ramp and a construction lane-drop. Behavior sliders: zipper discipline,
-speed-match vs brake-in, "politeness braking," early vs late merging. Metrics: throughput,
-wave frequency upstream. Tests the accelerate-into-gap protocol against entitled-signal
-merging honestly.
+**Claims:** traffic source #1, belief #3 mechanics. Two-lane highway + on-ramp; sliders for
+merger speed-matching and gap acceptance, mainline courtesy-braking vs make-room-by-moving.
+At 1,700+600 veh/h: creep-and-courtesy runs the merge at 37 mph with ~93 fleet brake
+taps/min; the speed-matched zipper holds 60 mph with ~7. At 1,900+650 today collapses
+(11 mph, 8-minute ramp waits) while trained serves everything. Modeling lesson learned:
+courtesy-braking for a merger *behind* you deadlocks the highway — real courtesy yields
+only to someone slotting in ahead.
 
-## v0.4 — The Mirror Room (blind spots)
+## 04 — The Mirrors ✅ (`mirrors/`)
 
-**Claim:** #2. Not a traffic sim — an interactive top-down car with draggable mirror angles
-showing the actual coverage cones and the hand-off sequence as a car overtakes. Two presets:
-"driving school" vs "wide." A passing car either vanishes into the blind zone or never
-disappears. Instantly checkable by anyone in their own car; highest practical-conversion
-demo of the set.
+**Claim:** #2. Pure geometry, no traffic: vision cones (windshield, side glass capped by
+the B-pillar, rear-view, two side mirrors with live-adjustable aim), an animated overtaker
+colored by whoever sees it, and a deterministic coverage bar sweeping the whole pass.
+Driving-school aim (~3° out, your own flank visible): a **4-meter fully-invisible zone** at
+your rear quarter. BGE wide aim (~28°): continuous rear-view → mirror → eyes hand-off,
+zero gap — and over-rotating past ~32° reopens a small one. Instantly checkable in a real
+car.
 
-## v0.5 — Trucks & Packs
+## 05 — Trucks & Packs ✅ with an open question (`trucks/`)
 
-**Claims:** traffic source #3. Mixed traffic with heavy vehicles, a pack-formation tendency
-slider ("comfort of the herd"), truck lane policy toggle. Metrics: speed distribution,
-pack size, time-to-pass.
+**Claims:** traffic source #3 — *partially unsupported by our model, and the page says so.*
+Three-lane loop, governed trucks, herding + truck-fear sliders, left-lane ban toggle. What
+holds up: elephant races ~double the boxed-in count; density dominates at the extremes; and
+lane-change churn seeds packs, so calm lane-holding beats eager hopping ("doing less" wins
+again — three separate trained-driver strategies that moved MORE all made things worse).
+What doesn't: IDM + gap-acceptance produces only mild packs (8–16 vehicles), not the giant
+rolling globs of the thesis. Either real packs need unmodeled mechanisms (defensive closing
+against cut-ins, rubbernecking) or this source is smaller than believed. Kept honest rather
+than tuned into submission.
 
-## v0.6 — One-Way Couplet vs Two-Way Arterial
+## 06 — The Couplet ✅ (`couplet/`)
 
-**Claim:** #7c. Same demand on (a) one bidirectional arterial vs (b) a 5th/6th-style pair,
-both with best-effort signal progression. Austin's own grid is the case study.
+**Claim:** #7c. Split-screen race: a two-way arterial vs the same lane-count as a one-way
+pair, identical drivers/demand/signal hardware. Uncoordinated: all four flows equal
+(~130–150s trips). Coordinated: the arterial must choose a direction (NB 86s/0.3 stops, SB
+still 152s/2.8) while **the pair waves both directions** (85s/84s, ~0.2 stops — within 10
+seconds of free-flow). Why Austin's 5th/6th exist; the walkability trade-off is noted on
+the page.
 
 ## Someday
 
@@ -98,3 +117,6 @@ both with best-effort signal progression. Austin's own grid is the case study.
 - A first-person "no brakes" game: drive the corridor, score = fewest brake presses
   (the San Diego game, playable).
 - Import any city corridor from OSM automatically (the build pipeline already mostly does this).
+- Turn movements + pedestrians in demo 01 (the biggest known gap vs the real 5th & Lamar).
+- "Austin's actual plan" preset once the signal-timing records request comes back.
+- A better pack model for demo 05 (cut-in defense, rubbernecking) to settle its open question.

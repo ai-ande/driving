@@ -1,7 +1,21 @@
-# driving
+# driving — The Driving Lab
 
 **Claim: a few teachable changes to how people drive would eliminate most traffic — no new
 lanes required. This repo turns that claim into playable, falsifiable demos.**
+
+Six demos, one static site, no dependencies (`python3 -m http.server`, open the root):
+
+| # | Demo | Tests | Headline result |
+|---|---|---|---|
+| 01 | [The Lights](index.html) | signals, reaction, distraction | trained drivers ≈ **2×** corridor capacity on real Austin streets |
+| 02 | [The Ring](ring/) | phantom jams from nothing | 4 of 28 calm drivers cut hard braking **~65%** |
+| 03 | [The Merge](merge/) | courtesy-brake vs zipper | speed-matched merging: 60 vs 37 mph at the same demand |
+| 04 | [The Mirrors](mirrors/) | blind spots | school mirror aim hides a whole car; BGE aim hides **nothing** |
+| 05 | [Trucks & Packs](trucks/) | pack instinct | *open question* — our model won't produce giant globs; says so on the page |
+| 06 | [The Couplet](couplet/) | one-way pairs | the pair green-waves **both** directions; the arterial must pick one |
+
+Every page states its physics and its limits; demo 05 is kept as an honest miss rather
+than tuned into agreement. Full results: [docs/demos.md](docs/demos.md).
 
 ## Demo #1: Lamar & the Lights
 
