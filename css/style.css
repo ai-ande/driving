@@ -80,6 +80,9 @@ main { flex: 1; display: flex; min-height: 0; }
 .slider input[type="range"] { width: 100%; margin: 5px 0 2px; accent-color: var(--accent); }
 .slider input[type="checkbox"] { accent-color: var(--green); margin-right: 4px; }
 .slider p { font-size: 11.5px; color: var(--dim); }
+#spark { width: 100%; height: 46px; display: block; margin: 4px 0 4px;
+  background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+#spark[hidden] { display: none; }
 
 .chip { color: var(--accent); }
 .chip:empty { display: none; }

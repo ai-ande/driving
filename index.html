@@ -100,10 +100,11 @@
       <h3>How many cars</h3>
       <div class="slider"><label>Demand <b id="vDemand"></b></label>
         <input type="range" id="sDemand" min="0.2" max="2" step="0.05">
-        <p>1.0× ≈ weekday rush hour on this stretch.</p></div>
+        <p id="demandNote">1.0× ≈ weekday rush hour on this stretch.</p></div>
       <div class="slider"><label><input type="checkbox" id="sProfile"> Replay a measured weekday <b id="vProfile"></b></label>
         <input type="range" id="sTod" min="300" max="1320" step="5" value="495" disabled>
-        <p>Feeds the sim with real traffic counts: City of Austin radar at Lamar&nbsp;&amp;&nbsp;Collier (northbound) and Lamar&nbsp;&amp;&nbsp;Sandra&nbsp;Muraida (southbound), averaged over Tue–Thu 2019. The clock advances as the sim runs; drag to jump. Cross-street volumes follow the same daily shape (no per-street counts exist).</p></div>
+        <canvas id="spark" hidden></canvas>
+        <p>Feeds the sim the City of Austin's radar counts from the Lamar bridge (Sandra&nbsp;Muraida sensor, Tue–Thu 2019 average — <span style="color:#2e7fbf">NB</span>/<span style="color:#e2a13c">SB</span> above). The clock advances as the sim runs; drag to jump. 2019 was lighter than you may expect: ~810&nbsp;veh/h NB at the 7:45&nbsp;AM peak. Use Demand as a growth factor. Cross streets follow the same daily shape (no per-street counts exist).</p></div>
     </section>
 
     <section>

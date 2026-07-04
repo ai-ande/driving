@@ -36,9 +36,13 @@ python3 -m http.server 8347
 4. Drag **Demand to 1.5×**: today's drivers cap out and pile a backlog off the map;
    trained drivers move ~45% more cars through the identical road.
 5. Check **“Replay a measured weekday”**: the sim is fed the City of Austin's actual radar
-   counts (Tue–Thu 2019 average) — northbound from the Lamar/Collier sensor, southbound
-   from Lamar/Sandra Muraida. The clock runs through the day; the scoreboard compares the
-   sim's speed at the bridge against what the radar actually measured at that time of day.
+   counts from the Lamar bridge sensor (Tue–Thu 2019 average, both directions; day-curve
+   sparkline shows what you're scrubbing through). The clock runs through the day; the
+   scoreboard compares the sim's speed at the bridge against what the radar actually
+   measured at that time of day. Real 2019 was lighter than the stress-test slider — about
+   810 veh/h northbound at the 7:45 AM peak — so in replay mode the Demand slider becomes a
+   growth factor on the measured curves (Austin has grown since; the sensor is also a
+   single point that misses some turn-in traffic).
 6. **Click any intersection** for its real city record — signal ID, retiming corridor and
    date, leading-pedestrian-interval flag — plus a **live traffic camera** view of that
    corner, straight from the city's public feeds.

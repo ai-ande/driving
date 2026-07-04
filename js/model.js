@@ -292,13 +292,16 @@ class Sim {
   demandMult(lane) {
     const cfg = this.cfg;
     if (!cfg.profileMode || !this.profile) return cfg.demand;
-    const t = cfg.timeOfDay;
-    if (lane.group === "NB") return this.profileValue(this.profile.nbVeh, t) / BASE_NB;
-    if (lane.group === "SB") return this.profileValue(this.profile.sbVeh, t) / BASE_SB;
+    // in replay mode the demand slider acts as a growth factor on the measured
+    // 2019 curves (1.0x = as recorded; Austin has grown since, and the radar is
+    // a single mid-corridor sensor)
+    const t = cfg.timeOfDay, g = cfg.demand;
+    if (lane.group === "NB") return g * this.profileValue(this.profile.nbVeh, t) / BASE_NB;
+    if (lane.group === "SB") return g * this.profileValue(this.profile.sbVeh, t) / BASE_SB;
     // cross streets: no per-street counts — reuse the corridor's time-of-day shape,
     // scaled so its busiest moment matches the slider's 1.0x levels
     const comb = this.profileValue(this.profile.nbVeh, t) + this.profileValue(this.profile.sbVeh, t);
-    return comb / this.profilePeakComb;
+    return g * comb / this.profilePeakComb;
   }
   measuredBridgeMph(dir) {
     if (!this.profile) return null;

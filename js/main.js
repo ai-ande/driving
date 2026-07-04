@@ -48,7 +48,10 @@ function applyCfg(from) {
   waveSpd.disabled = !c.wave;
   c.profileMode = profChk.checked && !!sim.profile;
   todSlider.disabled = !c.profileMode;
-  sliders.demand.el.disabled = c.profileMode;
+  $("spark").hidden = !c.profileMode;
+  $("demandNote").textContent = c.profileMode
+    ? "In replay mode this multiplies the measured 2019 curves — 1.0× is as recorded; Austin has grown since."
+    : "1.0× ≈ weekday rush hour on this stretch.";
   sim.retime();
   sim.applyDriverParams();
   if (from === "mix") sim.remix();
@@ -202,14 +205,18 @@ function updateMetrics() {
   // measured-weekday replay: sync slider to advancing clock, show rates + validation chip
   if (sim.cfg.profileMode && sim.profile) {
     if (!todDragging) todSlider.value = sim.cfg.timeOfDay;
-    const nb = Math.round(sim.profileValue(sim.profile.nbVeh, sim.cfg.timeOfDay));
-    const sb = Math.round(sim.profileValue(sim.profile.sbVeh, sim.cfg.timeOfDay));
-    profLbl.textContent = `${fmtClock(sim.cfg.timeOfDay)} · NB ${nb} / SB ${sb} veh/h`;
+    const g = sim.cfg.demand;
+    const nb = Math.round(g * sim.profileValue(sim.profile.nbVeh, sim.cfg.timeOfDay));
+    const sb = Math.round(g * sim.profileValue(sim.profile.sbVeh, sim.cfg.timeOfDay));
+    profLbl.textContent = `${fmtClock(sim.cfg.timeOfDay)} · NB ${nb} / SB ${sb} veh/h` +
+      (Math.abs(g - 1) > 0.01 ? ` (${g.toFixed(2)}× measured)` : "");
     const mNB = sim.measuredBridgeMph("NB"), mSB = sim.measuredBridgeMph("SB");
     const sNB = sim.simBridgeMph("NB"), sSB = sim.simBridgeMph("SB");
     const f = (v) => v == null ? "–" : Math.round(v);
     $("bridgeChip").textContent =
-      `Speed at the bridge — sim: ${f(sNB)} / ${f(sSB)} mph · measured 2019: ${f(mNB)} / ${f(mSB)} (NB/SB)`;
+      `Speed at the bridge — sim: ${f(sNB)} / ${f(sSB)} mph · measured 2019: ${f(mNB)} / ${f(mSB)} (NB/SB)` +
+      (Math.abs(g - 1) > 0.01 ? ` · note: running ${g.toFixed(2)}× measured volume` : "");
+    drawSpark();
   } else {
     profLbl.textContent = sim.profile ? "off" : "data unavailable";
     $("bridgeChip").textContent = "";
@@ -243,6 +250,47 @@ function updateMetrics() {
       $(id).className = "base " + (dd ? dd.cls : "");
     }
   }
+}
+
+/* ---------- day-curve sparkline (measured 2019 volumes) ---------- */
+function drawSpark() {
+  const cv = $("spark");
+  if (!cv || !sim.profile) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = cv.clientHeight;
+  if (!W) return;
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, W, H);
+  const T0 = 300, T1 = 1320;
+  const xOf = (min) => (min - T0) / (T1 - T0) * W;
+  const series = [[sim.profile.nbVeh, "#2e7fbf"], [sim.profile.sbVeh, "#e2a13c"]];
+  const vmax = Math.max(...sim.profile.nbVeh, ...sim.profile.sbVeh) * 1.08;
+  // hour gridlines + labels
+  c.font = "8.5px -apple-system, sans-serif";
+  c.textAlign = "center";
+  for (const [min, lab] of [[360, "6a"], [540, "9a"], [720, "12"], [900, "3p"], [1080, "6p"], [1260, "9p"]]) {
+    c.strokeStyle = "rgba(111,106,94,0.15)";
+    c.beginPath(); c.moveTo(xOf(min), 2); c.lineTo(xOf(min), H - 10); c.stroke();
+    c.fillStyle = "#8a8577";
+    c.fillText(lab, xOf(min), H - 3);
+  }
+  for (const [arr, col] of series) {
+    c.strokeStyle = col;
+    c.lineWidth = 1.5;
+    c.beginPath();
+    for (let min = T0; min <= T1; min += 10) {
+      const y = (H - 11) * (1 - sim.profileValue(arr, min) / vmax) + 2;
+      min === T0 ? c.moveTo(xOf(min), y) : c.lineTo(xOf(min), y);
+    }
+    c.stroke();
+  }
+  // now-cursor
+  const x = xOf(sim.cfg.timeOfDay);
+  c.strokeStyle = "#23303a";
+  c.lineWidth = 1.2;
+  c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H - 10); c.stroke();
 }
 
 /* ---------- boot & loop ---------- */
