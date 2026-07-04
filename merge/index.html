@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Merge — politeness braking vs. the speed-matched zipper</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  #hwwrap { flex: 1; position: relative; min-height: 0; }
+  #hw { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<header id="topbar">
+  <div id="titleblock">
+    <h1>The Merge</h1>
+    <p>A two-lane highway and an on-ramp. Nobody is rude, nobody crashes — yet how people <em>think about merging</em> decides whether the highway keeps flowing or breaks into waves.</p>
+  </div>
+  <div id="presets">
+    <button id="pToday" class="preset active">Today: creep &amp; courtesy-brake</button>
+    <button id="pTrained" class="preset">Trained: speed-matched zipper</button>
+  </div>
+  <div id="simctl">
+    <button id="pause" title="Pause/play">⏸</button>
+    <div id="speeds"><button data-speed="1">1×</button><button data-speed="2" class="active">2×</button><button data-speed="4">4×</button><button data-speed="8">8×</button></div>
+    <button id="reset" title="Restart">↺</button>
+    <span id="clock">0:00</span>
+  </div>
+</header>
+
+<main>
+  <div id="mapwrap">
+    <div id="hwwrap"><canvas id="hw"></canvas></div>
+    <div id="tswrap">
+      <div id="tstitle">Right lane, position vs. time — merge turbulence shows up as red fans spreading <em>upstream</em> from the ramp <button id="tstoggle">hide</button></div>
+      <canvas id="tsd"></canvas>
+    </div>
+  </div>
+
+  <aside id="panel">
+    <section id="scoreboard">
+      <div class="scorehead"><h2>The highway</h2></div>
+      <div class="bignums">
+        <div class="metric"><span class="val" id="mThru">–</span><span class="lbl">cars / hour through</span><span class="base"></span></div>
+        <div class="metric"><span class="val" id="mWait">–</span><span class="lbl">avg ramp wait</span><span class="base"></span></div>
+        <div class="metric"><span class="val" id="mBrakes">–</span><span class="lbl">mainline brake taps / min</span><span class="base"></span></div>
+      </div>
+      <div class="subnums">
+        <span>Mainline speed past the ramp: <b id="mSpeed">–</b></span>
+        <span>Failed merges (stopped at ramp end): <b id="mFailed">–</b></span>
+        <span id="spill" class="warn"></span>
+      </div>
+    </section>
+
+    <section>
+      <h3>How mergers behave</h3>
+      <div class="slider"><label>Speed-matching <b id="vMatch"></b></label>
+        <input type="range" id="sMatch" min="0" max="1" step="0.01" value="0.2">
+        <p>Low: crawl down the ramp and hope. High: use the whole ramp to hit traffic speed, then slide into a gap. Speed difference is what makes merges dangerous and disruptive.</p></div>
+      <div class="slider"><label>Gap acceptance <b id="vGapAcc"></b></label>
+        <input type="range" id="sGapAcc" min="0" max="1" step="0.01" value="0.35">
+        <p>Low: wait for a huge, "safe-feeling" hole (and block the ramp behind you). High: take any gap that physics actually supports.</p></div>
+    </section>
+
+    <section>
+      <h3>How the mainline responds</h3>
+      <div class="slider"><label>Courtesy braking <b id="vPolite"></b></label>
+        <input type="range" id="sPolite" min="0" max="1" step="0.01" value="0.6">
+        <p>The "polite" move: brake to open a hole for the merger. Feels kind — launches a wave that hits drivers two minutes behind you who never see why.</p></div>
+      <div class="slider"><label>Make room by moving over <b id="vMoveOver"></b></label>
+        <input type="range" id="sMoveOver" min="0" max="1" step="0.01" value="0.2">
+        <p>The trained move: if the left lane is free, change lanes early — room appears without anyone slowing down.</p></div>
+    </section>
+
+    <section>
+      <h3>Traffic</h3>
+      <div class="slider"><label>Highway demand <b id="vMain"></b></label>
+        <input type="range" id="sMain" min="600" max="2200" step="50" value="1700">
+        <p>veh/h arriving on the mainline (two lanes).</p></div>
+      <div class="slider"><label>Ramp demand <b id="vRamp"></b></label>
+        <input type="range" id="sRamp" min="100" max="900" step="25" value="600">
+        <p>veh/h arriving on the ramp.</p></div>
+    </section>
+
+    <section id="legend">
+      <h3>What to watch</h3>
+      <ul>
+        <li>Today: mergers arrive slow, mainline drivers courtesy-brake, and red fans grow upstream from the ramp — drivers a kilometer back stop without ever knowing why.</li>
+        <li>Trained: mergers arrive at traffic speed and take real gaps; the mainline makes room by moving over, not by braking. Same demand — watch all three numbers.</li>
+        <li>Merging is traffic source #1 in the <a href="../docs/thesis.md">thesis</a>: most "highway traffic" is born at ramps and lane drops.</li>
+      </ul>
+      <p class="foot">Physics: IDM + gap-acceptance lane changes. Through traffic only, no trucks (see demo 05). The zipper-merge result matches state DOT campaigns; see <a href="../docs/evidence.md">evidence</a>.</p>
+    </section>
+  </aside>
+</main>
+
+<script src="../js/lab.js"></script>
+<script>LAB.nav("03");</script>
+<script src="merge.js"></script>
+</body>
+</html>
