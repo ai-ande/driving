@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Couplet — why one-way pairs beat two-way arterials</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  #cpwrap { flex: 1; position: relative; min-height: 0; }
+  #cp { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<header id="topbar">
+  <div id="titleblock">
+    <h1>The Couplet</h1>
+    <p>Same lanes, same drivers, same demand, same lights. Left: a classic two-way arterial. Right: the same asphalt split into a one-way pair — Austin's own 5th&nbsp;&amp;&nbsp;6th. Geometry decides who gets a green wave.</p>
+  </div>
+  <div id="presets">
+    <button id="pUncoord" class="preset active">Uncoordinated lights</button>
+    <button id="pCoord" class="preset">Coordinated lights</button>
+  </div>
+  <div id="simctl">
+    <button id="pause" title="Pause/play">⏸</button>
+    <div id="speeds"><button data-speed="1">1×</button><button data-speed="2" class="active">2×</button><button data-speed="4">4×</button><button data-speed="8">8×</button></div>
+    <button id="reset" title="Restart">↺</button>
+    <span id="clock">0:00</span>
+  </div>
+</header>
+
+<main>
+  <div id="mapwrap">
+    <div id="cpwrap"><canvas id="cp"></canvas></div>
+  </div>
+
+  <aside id="panel">
+    <section id="scoreboard">
+      <div class="scorehead"><h2>Two-way arterial</h2></div>
+      <div class="bignums">
+        <div class="metric"><span class="val" id="aNB">–</span><span class="lbl">northbound trip · stops</span><span class="base"></span></div>
+        <div class="metric"><span class="val" id="aSB">–</span><span class="lbl">southbound trip · stops</span><span class="base"></span></div>
+      </div>
+      <div class="scorehead" style="margin-top:10px"><h2>One-way pair</h2></div>
+      <div class="bignums">
+        <div class="metric"><span class="val" id="bNB">–</span><span class="lbl">northbound trip · stops</span><span class="base"></span></div>
+        <div class="metric"><span class="val" id="bSB">–</span><span class="lbl">southbound trip · stops</span><span class="base"></span></div>
+      </div>
+      <div class="subnums">
+        <span id="verdictC"></span>
+        <span class="dim">Free-flow trip ≈ <b id="ffC">–</b>. Same total lane-count on both sides.</span>
+      </div>
+    </section>
+
+    <section>
+      <h3>Controls</h3>
+      <div class="slider"><label>Demand, each direction <b id="vDem"></b></label>
+        <input type="range" id="sDem" min="200" max="1100" step="25" value="700"></div>
+      <div class="slider"><label>Signal cycle <b id="vCyc"></b></label>
+        <input type="range" id="sCyc" min="40" max="120" step="5" value="70"></div>
+      <div class="slider"><label>Progression speed <b id="vWav"></b></label>
+        <input type="range" id="sWav" min="20" max="40" step="1" value="28">
+        <p>The speed the green wave is timed for, when coordination is on.</p></div>
+    </section>
+
+    <section id="legend">
+      <h3>What to watch</h3>
+      <ul>
+        <li>Uncoordinated: both systems limp equally — geometry doesn't matter when timing is random.</li>
+        <li>Coordinated: the arterial can only give its wave to <b>one</b> direction — northbound flies, southbound still stops. The pair gives <b>both</b> directions a perfect wave, because each street only has one direction to please.</li>
+        <li>This is thesis belief #7c — and it's why Austin's 5th/6th (and hundreds of downtown pairs) exist. Modern cities sometimes convert them back for walkability; flow is only one good among several.</li>
+      </ul>
+      <p class="foot">Physics: IDM + startup reaction + fixed-time signals; no cross traffic spawned (the cross phase still steals time, as in life). Identical driver population and light hardware on both sides — only the geometry differs.</p>
+    </section>
+  </aside>
+</main>
+
+<script src="../js/lab.js"></script>
+<script>LAB.nav("06");</script>
+<script src="couplet.js"></script>
+</body>
+</html>
