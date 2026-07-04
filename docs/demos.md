@@ -20,22 +20,38 @@ Physics: Intelligent Driver Model (standard car-following used in research) + ex
 human reaction delay at startup + a "looking ahead" behavior that converts late hard braking
 into early gentle coasting (latest-gentle-liftoff).
 
-Measured results (steady state, 6-minute windows, v0.2 corridor):
+v0.3 added the two missing pieces of downtown reality: a **turn-arrow/pedestrian phase
+allowance** at major crossings (cycle time neither through movement gets, default 12 s,
+pending the city's real timing sheets) and **distraction at reds** (a share of stopped
+drivers miss the launch by 1–4 s — the phone-check holes that make the back of a queue
+never move before the light turns red again). With those in, the sim reproduces the
+corridor's observed failure mode: at measured 2019 volumes, 37 of 40 greens at 5th & Lamar
+end with stopped cars left behind, and the queue periodically reaches back across the
+Cesar Chavez bridge — exactly what regulars report. At 1.3× (≈ today's volumes) the AM
+peak collapses outright.
+
+Measured results (steady state, 6-minute windows, v0.3 corridor):
 
 | Scenario | NB cars/hr | NB avg trip | NB stops/car |
 |---|---|---|---|
 | Free flow (reference) | — | 2:36 | 0 |
-| Drivers today, 1.0× demand | 1,250 | 5:20 | 4.2 |
-| Trained drivers, same lights | 1,240 | 4:32 | 2.6 |
-| Trained + green wave | 1,250 | **3:17** | **0.5** |
-| Drivers today, 1.5× demand | 1,300 (capped) + 213 cars stuck off-map | 6:11 | 4.8 |
-| Trained drivers, 1.5× demand | **1,890 (all demand served)** | 5:11 | 3.7 |
-| Trained + wave, 1.5× demand | 1,890 (all served) | 3:46 | 0.9 |
+| Drivers today, 1.0× demand | **860 (saturated)** + slow off-map backlog | 8:25 | 6.8 |
+| Trained drivers, same lights | 1,240 (all demand served) | 4:58 | 3.6 |
+| Trained + green wave | 1,240 (all served) | **3:23** | **0.6** |
+| Drivers today, 1.5× demand | 870 (capped) + **787 cars stuck off-map** | 7:33* | 6.3 |
+| Trained drivers, 1.5× demand | 1,600 | 7:05 | 5.1 |
+| Trained + wave, 1.5× demand | 1,680 | 4:53 | 1.6 |
 
-Headline: **behavior alone adds ~45% capacity to the same road**; behavior + signal
-coordination gets a full rush hour within ~40 seconds of empty-road travel time. In
-measured-weekday replay at the 8 AM peak, the sim's speed at the Lamar bridge lands within
-a few mph of what the city's radar actually recorded in 2019 — with no tuning against it.
+\* shorter than 1.0× only because most of the delay has been pushed off-map (787 queued
+outside the corridor vs 9).
+
+Headline: with real-world signal overhead and phone-level distraction, **today's drivers
+get ~860 veh/h out of a corridor that trained drivers move ~1,650–1,700 through — roughly
+double** — and with a green wave the same rush runs near free-flow. Calibration
+philosophy: the "today" parameters are tuned to reproduce the corridor's *observed*
+failure (5th St backing up to the bridge at real volumes), not an idealized
+textbook saturation flow. In measured-weekday replay the sim's bridge speed brackets the
+2019 radar measurement (slightly fast at 1.0×, slightly slow at 1.4×).
 
 Next polish ideas: the city's real timing plans via public-records request ("Austin's
 actual plan" preset); click-a-car "ride along" camera; per-intersection timing editors;

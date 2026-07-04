@@ -9,9 +9,9 @@ const tsd = new TSD(document.getElementById("tsd"), sim);
 /* ---------- presets ---------- */
 // presets change behavior + signal plan; demand is left where the user set it
 const PRESETS = {
-  today:   { react: 1.4, gap: 1.6, accel: 1.6, antic: 0.15, mix: 0, cycle: 90, split: 0.55, wave: false, waveMph: 30 },
-  trained: { react: 0.3, gap: 1.0, accel: 2.2, antic: 0.90, mix: 1, cycle: 90, split: 0.55, wave: false, waveMph: 30 },
-  city:    { react: 0.3, gap: 1.0, accel: 2.2, antic: 0.90, mix: 1, cycle: 90, split: 0.55, wave: true,  waveMph: 30 },
+  today:   { react: 1.4, gap: 1.6, accel: 1.6, antic: 0.15, distract: 0.30, mix: 0, cycle: 90, split: 0.55, turnPed: 12, wave: false, waveMph: 30 },
+  trained: { react: 0.3, gap: 1.0, accel: 2.2, antic: 0.90, distract: 0,    mix: 1, cycle: 90, split: 0.55, turnPed: 12, wave: false, waveMph: 30 },
+  city:    { react: 0.3, gap: 1.0, accel: 2.2, antic: 0.90, distract: 0,    mix: 1, cycle: 90, split: 0.55, turnPed: 12, wave: true,  waveMph: 30 },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -20,9 +20,11 @@ const sliders = {
   gap:    { el: $("sGap"),    lbl: $("vGap"),    fmt: v => v.toFixed(2) + " s" },
   accel:  { el: $("sAccel"),  lbl: $("vAccel"),  fmt: v => v.toFixed(1) + " m/s²" },
   antic:  { el: $("sAntic"),  lbl: $("vAntic"),  fmt: v => Math.round(v * 100) + "%" },
+  distract: { el: $("sDistract"), lbl: $("vDistract"), fmt: v => Math.round(v * 100) + "%" },
   mix:    { el: $("sMix"),    lbl: $("vMix"),    fmt: v => Math.round(v * 100) + "%" },
   cycle:  { el: $("sCycle"),  lbl: $("vCycle"),  fmt: v => Math.round(v) + " s" },
   split:  { el: $("sSplit"),  lbl: $("vSplit"),  fmt: v => Math.round(v * 100) + "%" },
+  turnPed: { el: $("sTurnPed"), lbl: $("vTurnPed"), fmt: v => Math.round(v) + " s" },
   demand: { el: $("sDemand"), lbl: $("vDemand"), fmt: v => v.toFixed(2) + "×" },
 };
 const waveChk = $("sWave"), waveSpd = $("sWaveSpd"), waveLbl = $("vWave");
@@ -100,8 +102,9 @@ function writeHash() {
   clearTimeout(writeHash.t);
   writeHash.t = setTimeout(() => {
     const c = sim.cfg;
-    const h = ["r" + c.react, "g" + c.gap, "a" + c.accel, "n" + c.antic, "m" + c.mix,
-               "c" + c.cycle, "s" + c.split, "w" + (c.wave ? 1 : 0), "v" + waveSpd.value,
+    const h = ["r" + c.react, "g" + c.gap, "a" + c.accel, "n" + c.antic, "x" + c.distract,
+               "m" + c.mix, "c" + c.cycle, "s" + c.split, "q" + c.turnPed,
+               "w" + (c.wave ? 1 : 0), "v" + waveSpd.value,
                "d" + c.demand, "p" + (c.profileMode ? 1 : 0),
                "t" + Math.round(c.timeOfDay)].join("_");
     history.replaceState(null, "", "#" + h);
@@ -116,7 +119,8 @@ function readHash() {
   }
   if (!("r" in m)) return false;
   setSliders({ react: m.r, gap: m.g, accel: m.a, antic: m.n, mix: m.m,
-               cycle: m.c, split: m.s, wave: m.w === 1, waveMph: m.v, demand: m.d });
+               cycle: m.c, split: m.s, wave: m.w === 1, waveMph: m.v, demand: m.d,
+               distract: "x" in m ? m.x : 0.3, turnPed: "q" in m ? m.q : 12 });
   if (m.p === 1) {
     profChk.checked = true;
     if ("t" in m) { todSlider.value = m.t; sim.cfg.timeOfDay = m.t; }

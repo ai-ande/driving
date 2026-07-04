@@ -78,6 +78,9 @@
       <div class="slider"><label>Looking ahead <b id="vAntic"></b></label>
         <input type="range" id="sAntic" min="0" max="1" step="0.01">
         <p>Low: stare at the bumper ahead, brake late and hard. High: read the road far ahead, ease off early, arrive at lights still rolling.</p></div>
+      <div class="slider"><label>Distraction at reds <b id="vDistract"></b></label>
+        <input type="range" id="sDistract" min="0" max="0.6" step="0.01">
+        <p>Share of stopped drivers on their phone when their turn comes — each miss adds 1–4&nbsp;s of dead green and punches a hole in the queue. This is why the back of a queue often never moves before the light turns red again.</p></div>
       <div class="slider"><label>Share of trained drivers <b id="vMix"></b></label>
         <input type="range" id="sMix" min="0" max="1" step="0.01">
         <p>Overrides that share of cars with a trained driver (0.3&nbsp;s reaction, 1.0&nbsp;s cushion, coasts instead of braking). Watch what even 20% does.</p></div>
@@ -90,7 +93,10 @@
         <p>Full red-to-red cycle at every intersection.</p></div>
       <div class="slider"><label>Lamar’s share of the green <b id="vSplit"></b></label>
         <input type="range" id="sSplit" min="0.3" max="0.85" step="0.01">
-        <p>Big cross streets get the rest. Minor crossings (Toomey, Riverside, 3rd, 9th, 10th) take a short fixed phase — they stop Lamar even when empty.</p></div>
+        <p>Big cross streets get the rest. Minor crossings (Toomey, Riverside, 9th, 10th) take a short fixed phase — they stop Lamar even when empty.</p></div>
+      <div class="slider"><label>Turn arrows &amp; walk phases <b id="vTurnPed"></b></label>
+        <input type="range" id="sTurnPed" min="0" max="20" step="1">
+        <p>Cycle time at major crossings (Barton Springs, Cesar Chavez, 5th, 6th, 12th) that <em>neither</em> through movement gets — protected left arrows, pedestrian phases. The city’s real splits are pending a records request; this is the generic reality tax.</p></div>
       <div class="slider"><label><input type="checkbox" id="sWave"> Green wave up Lamar <b id="vWave"></b></label>
         <input type="range" id="sWaveSpd" min="20" max="40" step="1">
         <p>Offsets each light so a platoon leaving one green arrives at the next one. Timed northbound at the speed above — note what it does to southbound.</p></div>
@@ -126,7 +132,7 @@
         <li><span class="dotdemo" style="background:#777;outline:2px solid #e2a13c"></span> amber ring = green light / gap open, driver hasn’t reacted yet</li>
         <li>5th St runs one-way east, 6th St one-way west — Austin’s downtown couplet.</li>
       </ul>
-      <p class="foot">v0.2 — through traffic only (no turns yet). Signal timings are simplified two-phase, not the city’s actual plans (those are being requested). 3rd St is unsignalized and 15th St passes <em>over</em> Lamar — both verified against the city signal registry. Street &amp; water geometry © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; traffic counts, signal records &amp; cameras: <a href="https://data.austintexas.gov">City of Austin open data</a>.</p>
+      <p class="foot">v0.3 — through traffic only (no turns yet; real 5th &amp; Lamar also loses a lane to right-turners yielding at the crosswalk). Signals are two-phase plus a generic turn-arrow/walk allowance at majors — the city’s actual plans are being requested. 3rd St is unsignalized and 15th St passes <em>over</em> Lamar — both verified against the city signal registry. Street &amp; water geometry © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; traffic counts, signal records &amp; cameras: <a href="https://data.austintexas.gov">City of Austin open data</a>.</p>
     </section>
   </aside>
 </main>

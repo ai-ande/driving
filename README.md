@@ -27,8 +27,11 @@ python3 -m http.server 8347
 **What to try, in order:**
 
 1. Watch the *Drivers today* preset: zoom to "5th & Lamar" and watch a queue "unzip" one
-   car at a time when the light turns green. That stagger is human reaction time, and it
-   burns a large share of every green.
+   car at a time when the light turns green. That stagger is human reaction time — and the
+   holes are the **distraction slider** at work: a share of stopped drivers are on their
+   phone when their turn comes, each miss burning 1–4 s of green. At real volumes this is
+   why the back of the queue often never moves before the red, and why 5th St backs up
+   across the Cesar Chavez bridge every morning.
 2. Click **Trained drivers**: same road, same lights, same demand — reaction 0.3s, tighter
    cushion, and coasting instead of braking. Watch stops/car and trip time fall.
 3. Click **Trained + green wave**: signals re-timed so platoons surf the greens. Trips run
@@ -77,15 +80,21 @@ which an "Austin's actual plan" preset becomes possible.
 ### How the model works (honesty section)
 
 - Car-following is the **Intelligent Driver Model** (IDM), standard in traffic research,
-  plus: an explicit per-driver **reaction delay** when starting from a stop, a perception
-  horizon (drivers who don't look ahead brake late and hard), and a **latest-gentle-liftoff**
-  glide behavior for anticipating drivers (ease off just early enough to arrive at the line
-  slowly and still rolling — the light gets time to change).
-- Signals are simplified fixed-time two-phase (real Austin signals are actuated and have
-  turn phases); minor crossings get a short side phase. **Through traffic only — no turns
-  yet.** Demand levels are plausible rush-hour estimates, not measured counts.
-- Numbers worth trusting: relative comparisons between presets. Numbers not to quote as
-  fact: absolute veh/hr for the real Lamar.
+  plus: an explicit per-driver **reaction delay** when starting from a stop, a
+  **distraction model** (per stop, some drivers miss the launch by 1–4 s — the phone
+  check), a perception horizon (drivers who don't look ahead brake late and hard), and a
+  **latest-gentle-liftoff** glide for anticipating drivers (ease off just early enough to
+  arrive at the line slowly and still rolling — the light gets time to change).
+- Signals are fixed-time two-phase **plus a turn-arrow/pedestrian allowance at majors**
+  (default 12 s of each cycle that neither through movement gets — real 5th/6th/Cesar
+  Chavez burn serious cycle time on protected turns and crosswalks; the city's actual
+  timing sheets are pending a records request). Minor crossings get a short side phase.
+  **Through traffic only — no turns yet** (the biggest remaining gap: right-turners
+  yielding to pedestrians eat a lane at 5th in real life).
+- Calibration philosophy: "today" defaults are tuned to reproduce the corridor's
+  *observed* failure mode — 5th St backing up across the bridge at real volumes — not an
+  idealized textbook saturation flow. Numbers worth trusting: relative comparisons between
+  presets. Numbers not to quote as fact: absolute veh/hr for the real Lamar.
 
 Street & water geometry © [OpenStreetMap](https://www.openstreetmap.org/copyright)
 contributors (ODbL), extracted via the reproducible pipeline in `tools/`

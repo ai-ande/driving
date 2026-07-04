@@ -64,11 +64,17 @@ class Controller {
   }
   retime(cfg, sLamar0) {
     const C = cfg.cycle;
-    const usable = Math.max(16, C - LOST);
     if (this.inter.cls === "major") {
+      // majors lose extra green to protected turn arrows + pedestrian phases —
+      // time during which NEITHER through movement runs (real 5th/6th/Cesar
+      // Chavez burn a lot of cycle on these; exact splits pending records request)
+      this.turnPed = Math.min(cfg.turnPed, C * 0.3);
+      const usable = Math.max(16, C - LOST - this.turnPed);
       this.gMain = Math.max(8, usable * cfg.split);
       this.gCross = Math.max(8, usable - this.gMain);
-    } else { // minor crossing: short semi-actuated-style side phase
+    } else { // minor crossing: short semi-actuated-style side phase, no turn phases
+      this.turnPed = 0;
+      const usable = Math.max(16, C - LOST);
       this.gCross = Math.min(12, usable * 0.35);
       this.gMain = usable - this.gCross;
     }
@@ -78,6 +84,7 @@ class Controller {
       : this.offsetFrac * C;
   }
   // approach: 'main' (Lamar) or 'cross' -> 'g' | 'y' | 'r'
+  // cycle layout: [main G][Y][AR][turn/ped dead time][cross G][Y][AR]
   state(t, approach) {
     let u = (t - this.offset) % this.cycle;
     if (u < 0) u += this.cycle;
@@ -87,7 +94,7 @@ class Controller {
       if (u < gM + YELLOW) return "y";
       return "r";
     } else {
-      const start = gM + YELLOW + ALLRED;
+      const start = gM + YELLOW + ALLRED + (this.turnPed || 0);
       if (u >= start && u < start + gC) return "g";
       if (u >= start + gC && u < start + gC + YELLOW) return "y";
       return "r";
@@ -96,7 +103,7 @@ class Controller {
 }
 
 /* ---------- driver parameter helpers ---------- */
-const TRAINED = { react: 0.3, gap: 1.0, accel: 2.2, antic: 0.9 };
+const TRAINED = { react: 0.3, gap: 1.0, accel: 2.2, antic: 0.9, distract: 0 };
 const S0 = 2.0;               // standstill gap (m)
 const CAR_LEN = 4.6;
 
@@ -115,6 +122,7 @@ class Car {
     this.vMul = 0.94 + rng() * 0.14;   // desired speed vs limit
     this.applyParams(cfg);
     this.goTimer = -1;           // -1 = not waiting; else seconds accumulated
+    this.lapse = 0;              // extra launch delay this stop (phone check)
     this.waiting = false;        // stopped with open road, reaction pending (render hint)
     this.braking = false;
     this.sigLatch = null;        // {ctrlIdx, cycleN, go}
@@ -130,6 +138,7 @@ class Car {
     this.aMax = Math.max(0.7, p.accel * (1 + 0.2 * this.j3));
     this.antic = Math.max(0, Math.min(1, p.antic + 0.1 * this.j1));
     this.bComf = 2.6 - 1.6 * this.antic;    // anticipators plan gentle stops
+    this.distract = Math.max(0, Math.min(0.9, (p.distract || 0) * (1 + 0.4 * this.j3)));
     this.v0 = this.lane.limit * this.vMul * (this.trained ? 1.0 : 1.0);
   }
 }
@@ -156,8 +165,8 @@ class Sim {
     this.t = 0;
     this.rng = mulberry32(20260704);
     this.cfg = {
-      react: 1.4, gap: 1.6, accel: 1.6, antic: 0.15, mix: 0,
-      cycle: 90, split: 0.55, wave: false, waveSpeed: 13.4,
+      react: 1.4, gap: 1.6, accel: 1.6, antic: 0.15, distract: 0.3, mix: 0,
+      cycle: 90, split: 0.55, wave: false, waveSpeed: 13.4, turnPed: 12,
       demand: 1.0,
       profileMode: false, timeOfDay: 8 * 60 + 15, // measured-2019 replay
     };
@@ -377,7 +386,12 @@ class Sim {
         if (braking && c.brakeDebounce <= 0) { c.brakeCount++; c.brakeDebounce = 2.0; }
         c.brakeDebounce -= dt;
         c.braking = c.a < -1.0 || (c.v < 0.3 && this.nearRed(c));
-        if (c.v < 0.4 && c.lastStopV > 2.2) { c.stopCount++; c.lastStopV = 0; }
+        if (c.v < 0.4 && c.lastStopV > 2.2) {
+          c.stopCount++; c.lastStopV = 0;
+          // phone check: some drivers miss the launch, leaving a hole in the queue
+          const u = mulberry32((c.id * 9301 + c.stopCount * 49297) >>> 0);
+          c.lapse = u() < c.distract ? 0.8 + u() * 3.2 : 0;
+        }
         if (c.v > 2.2) c.lastStopV = c.v;
         // corridor window
         if (lane.measure) {
@@ -486,7 +500,7 @@ class Sim {
       if (openAhead && sigOk && a > 0.05) {
         if (c.goTimer < 0) c.goTimer = 0;
         c.goTimer += 1 / 30;
-        if (c.goTimer < c.react) { a = Math.min(a, 0); c.waiting = true; }
+        if (c.goTimer < c.react + c.lapse) { a = Math.min(a, 0); c.waiting = true; }
         else c.waiting = false;
       } else { c.goTimer = -1; c.waiting = false; }
     } else { c.goTimer = -1; c.waiting = false; }
