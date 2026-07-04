@@ -2,7 +2,7 @@
 
 Principle: no lectures. Each demo is a toy the visitor plays with, where the *discovery* is
 theirs. Sliders change one believable human behavior; the metrics and the picture do the
-arguing. **All six demos are built** and linked by the nav strip on every page. And one
+arguing. **All seven demos are built** and linked by the nav strip on every page. And one
 principle above all: when the model disagrees with the thesis, the page says so (see 05).
 
 ## v0.2 — Lamar & the Lights ✅ (this repo)
@@ -110,6 +110,21 @@ pair, identical drivers/demand/signal hardware. Uncoordinated: all four flows eq
 still 152s/2.8) while **the pair waves both directions** (85s/84s, ~0.2 stops — within 10
 seconds of free-flow). Why Austin's 5th/6th exist; the walkability trade-off is noted on
 the page.
+
+## 07 — The Cockpit ✅ (`cockpit/`)
+
+**Claim:** #2, again — demo 04 from the driver's seat. Same zone constants as The Mirrors
+(16° flat side glass, 30° rear-view, ±70° head-still eyes), so the blind-zone numbers
+agree; the new thing is the view. A software-3D cockpit (vanilla canvas, planar pinhole
+projection per window; mirror cameras render horizontally flipped like real glass): three
+window panes, a rear-view and two live-aimable side mirrors (drag to aim), a car easing
+past in the left lane, and the dash infotainment screen literally running demo 04's
+top-down view as ground truth. With school aim you watch the passer leave the side mirror
+*while still behind your shoulder* and go invisible for measured seconds (the "invisible
+per pass" metric); with BGE aim the hand-off rear-view → mirror → window never breaks. The
+school-aim mirror also shows your own rear door — glass spent on your own paint. Honesty
+notes on the page: pillars are drawn but not modeled as blockers, windows are flat
+projections, real right-side mirrors are convex.
 
 ## Someday
 

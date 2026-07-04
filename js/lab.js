@@ -175,6 +175,7 @@ LAB.nav = function (current, rel) {
     ["04", "The Mirrors", "mirrors/"],
     ["05", "Trucks & Packs", "trucks/"],
     ["06", "The Couplet", "couplet/"],
+    ["07", "The Cockpit", "cockpit/"],
   ];
   const el = document.createElement("nav");
   el.id = "labnav";

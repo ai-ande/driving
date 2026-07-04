@@ -3,7 +3,7 @@
 **Claim: a few teachable changes to how people drive would eliminate most traffic — no new
 lanes required. This repo turns that claim into playable, falsifiable demos.**
 
-Six demos, one static site, no dependencies (`python3 -m http.server`, open the root):
+Seven demos, one static site, no dependencies (`python3 -m http.server`, open the root):
 
 | # | Demo | Tests | Headline result |
 |---|---|---|---|
@@ -13,6 +13,7 @@ Six demos, one static site, no dependencies (`python3 -m http.server`, open the 
 | 04 | [The Mirrors](mirrors/) | blind spots | school mirror aim hides a whole car; BGE aim hides **nothing** |
 | 05 | [Trucks & Packs](trucks/) | pack instinct | *open question* — our model won't produce giant globs; says so on the page |
 | 06 | [The Couplet](couplet/) | one-way pairs | the pair green-waves **both** directions; the arterial must pick one |
+| 07 | [The Cockpit](cockpit/) | demo 04, first-person | school aim: the passer goes invisible *while beside you*; BGE: an unbroken relay |
 
 Every page states its physics and its limits; demo 05 is kept as an honest miss rather
 than tuned into agreement. Full results: [docs/demos.md](docs/demos.md).
