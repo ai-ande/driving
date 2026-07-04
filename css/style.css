@@ -10,6 +10,17 @@ body {
   display: flex; flex-direction: column; overflow: hidden;
 }
 
+/* ---------- lab nav ---------- */
+#labnav { display: flex; align-items: center; gap: 2px; padding: 5px 14px;
+  background: #23303a; overflow-x: auto; flex: none; }
+#labnav b { color: #f2efe7; font-size: 10px; letter-spacing: 1.5px; margin-right: 12px; white-space: nowrap; }
+#labnav a { color: #cdd6dd; text-decoration: none; font-size: 12px; padding: 3px 10px;
+  border-radius: 6px; white-space: nowrap; }
+#labnav a span { opacity: 0.55; font-variant-numeric: tabular-nums; }
+#labnav a:hover { background: rgba(255,255,255,0.1); }
+#labnav a.here { background: #f2efe7; color: #23303a; font-weight: 600; }
+#labnav .gh { margin-left: auto; opacity: 0.7; }
+
 /* ---------- header ---------- */
 #topbar {
   display: flex; align-items: center; gap: 18px; padding: 10px 16px;

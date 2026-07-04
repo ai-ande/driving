@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Ring — traffic jams from nothing, and the driver who erases them</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  #ringwrap { flex: 1; position: relative; min-height: 0; }
+  #ring { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #centerstats { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none; }
+  #centerstats .big { font-size: 34px; font-weight: 700; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  #centerstats .sub { font-size: 12px; color: var(--dim); }
+  #waveflag { font-size: 13px; font-weight: 650; margin-top: 6px; }
+</style>
+</head>
+<body>
+<header id="topbar">
+  <div id="titleblock">
+    <h1>The Ring</h1>
+    <p>One lane, no lights, no crashes, no reason to stop — the 2008 Sugiyama experiment. Jams are born from <em>driving style alone</em> — and calm drivers absorb them.</p>
+  </div>
+  <div id="presets">
+    <button id="pToday" class="preset active">Everyone: today</button>
+    <button id="pOne" class="preset">Convert ONE driver</button>
+    <button id="pAll" class="preset">Everyone trained</button>
+  </div>
+  <div id="simctl">
+    <button id="pause" title="Pause/play">⏸</button>
+    <div id="speeds"><button data-speed="1">1×</button><button data-speed="2" class="active">2×</button><button data-speed="4">4×</button><button data-speed="8">8×</button></div>
+    <button id="reset" title="Restart">↺</button>
+    <span id="clock">0:00</span>
+  </div>
+</header>
+
+<main>
+  <div id="mapwrap">
+    <div id="ringwrap">
+      <canvas id="ring"></canvas>
+      <div id="centerstats">
+        <div class="big" id="avgSpeed">–</div>
+        <div class="sub">average speed (limit 45 mph)</div>
+        <div id="waveflag"></div>
+      </div>
+    </div>
+    <div id="tswrap">
+      <div id="tstitle">Position around the ring vs. time — jams appear as red bands drifting <em>backward</em> against traffic <button id="tstoggle">hide</button></div>
+      <canvas id="tsd"></canvas>
+    </div>
+  </div>
+
+  <aside id="panel">
+    <section id="scoreboard">
+      <div class="scorehead"><h2>The flow</h2></div>
+      <div class="bignums">
+        <div class="metric"><span class="val" id="mSpeed">–</span><span class="lbl">avg mph</span><span class="base"></span></div>
+        <div class="metric"><span class="val" id="mWaves">–</span><span class="lbl">jam waves</span><span class="base"></span></div>
+        <div class="metric"><span class="val" id="mBrakes">–</span><span class="lbl">brake taps / min</span><span class="base"></span></div>
+      </div>
+      <div class="subnums">
+        <span>Speed swing (calm ↔ chaos): <b id="mSwing">–</b></span>
+        <span class="dim">Trained drivers wear a white dot.</span>
+      </div>
+    </section>
+
+    <section>
+      <h3>The road</h3>
+      <div class="slider"><label>Cars on the ring <b id="vN"></b></label>
+        <input type="range" id="sN" min="12" max="40" step="1" value="28">
+        <p>The 2008 experiment used 22 cars on a 230&nbsp;m circle. More cars = less room to absorb mistakes.</p></div>
+      <div class="slider"><label>Trained drivers <b id="vTrained"></b></label>
+        <input type="range" id="sTrained" min="0" max="40" step="1" value="0">
+        <p>Trained: keeps a generous cushion, reads several cars ahead, never over-brakes — spends the gap to absorb the wave instead of passing it on amplified.</p></div>
+    </section>
+
+    <section>
+      <h3>How the humans drive</h3>
+      <div class="slider"><label>Reaction lag <b id="vLag"></b></label>
+        <input type="range" id="sLag" min="0.2" max="2.2" step="0.05" value="0.9">
+        <p>How stale the picture in each driver's head is. Lag is the engine of phantom jams: you respond to where traffic <em>was</em>.</p></div>
+      <div class="slider"><label>Following cushion <b id="vGap"></b></label>
+        <input type="range" id="sGap" min="0.7" max="2.2" step="0.05" value="1.15">
+        <p>Time gap behind the leader. Small cushions leave nothing to absorb with.</p></div>
+      <div class="slider"><label>Attention wobble <b id="vNoise"></b></label>
+        <input type="range" id="sNoise" min="0" max="1" step="0.01" value="0.3">
+        <p>Random drift in speed-keeping — glances at the phone, the radio, the dog.</p></div>
+    </section>
+
+    <section id="legend">
+      <h3>What to watch</h3>
+      <ul>
+        <li>Start: everyone cruising. Within a couple of minutes, a jam forms <em>from nothing</em> and orbits backward.</li>
+        <li>Click <b>Convert ONE driver</b>: the white-dot car opens a cushion when it senses the wave breathing ahead, and softens it — hard braking drops immediately.</li>
+        <li>Slide trained drivers up: 4 of 28 cuts hard braking by ~65%. Everyone trained: glass-smooth. And try FEWER cars — below ~19 this ring can’t jam at all: density and behavior both matter.</li>
+      </ul>
+      <p class="foot">Physics: Intelligent Driver Model + per-driver perception lag and noise. Real-world anchors: Sugiyama et&nbsp;al. 2008 (jams from nothing, ring experiment); Stern et&nbsp;al. 2018 (one controlled car cut speed variance and fuel burn on a real ring — the same dose-response you’re seeing here); Bill Beaty's trafficwaves.org (the original one-driver experiments). See <a href="../docs/evidence.md">evidence</a>.</p>
+    </section>
+  </aside>
+</main>
+
+<script src="../js/lab.js"></script>
+<script>LAB.nav("02");</script>
+<script src="ring.js"></script>
+</body>
+</html>
