@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trucks &amp; Packs — why everyone ends up in a clump</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  #trwrap { flex: 1; position: relative; min-height: 0; }
+  #tr { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<header id="topbar">
+  <div id="titleblock">
+    <h1>Trucks &amp; Packs</h1>
+    <p>A three-lane loop, a few slow trucks, and one human instinct: <em>staying near other cars feels safe</em>. It isn't — nowhere is more dangerous than beside someone you can't control — and it's how packs are born.</p>
+  </div>
+  <div id="presets">
+    <button id="pToday" class="preset active">Today: herd &amp; hesitate</button>
+    <button id="pTrained" class="preset">Trained: pockets &amp; decisive passes</button>
+  </div>
+  <div id="simctl">
+    <button id="pause" title="Pause/play">⏸</button>
+    <div id="speeds"><button data-speed="1">1×</button><button data-speed="2" class="active">2×</button><button data-speed="4">4×</button><button data-speed="8">8×</button></div>
+    <button id="reset" title="Restart">↺</button>
+    <span id="clock">0:00</span>
+  </div>
+</header>
+
+<main>
+  <div id="mapwrap">
+    <div id="trwrap"><canvas id="tr"></canvas></div>
+  </div>
+
+  <aside id="panel">
+    <section id="scoreboard">
+      <div class="scorehead"><h2>The flow</h2></div>
+      <div class="bignums">
+        <div class="metric"><span class="val" id="mSpeed">–</span><span class="lbl">avg car speed</span><span class="base"></span></div>
+        <div class="metric"><span class="val" id="mP10">–</span><span class="lbl">unlucky 10% doing</span><span class="base"></span></div>
+        <div class="metric"><span class="val" id="mPack">–</span><span class="lbl">biggest pack</span><span class="base"></span></div>
+      </div>
+      <div class="subnums">
+        <span>Cars boxed in right now: <b id="mBoxed">–</b></span>
+        <span>Time lost vs. open road: <b id="mLost">–</b></span>
+        <span class="dim">Trained drivers wear a white dot. Trucks are the long ones.</span>
+      </div>
+    </section>
+
+    <section>
+      <h3>The road</h3>
+      <div class="slider"><label>Vehicles on the loop <b id="vN"></b></label>
+        <input type="range" id="sN" min="40" max="160" step="5" value="100"></div>
+      <div class="slider"><label>Share of trucks <b id="vTrucks"></b></label>
+        <input type="range" id="sTrucks" min="0" max="0.3" step="0.01" value="0.15">
+        <p>Trucks are governed to 56 mph and accelerate slowly. They are not the villain — the packing behavior around them is.</p></div>
+      <div class="slider"><label><input type="checkbox" id="sBan" checked> Trucks keep right <b id="vBan"></b></label>
+        <p>Many states ban trucks from the left lane. Toggle off to allow the classic "elephant race."</p></div>
+      <div class="slider"><label>Trained drivers <b id="vMix"></b></label>
+        <input type="range" id="sMix" min="0" max="1" step="0.01" value="0">
+        <p>Trained: pass decisively when it genuinely pays, hold lane and cushion when the road is dense (churn seeds packs), never cruise alongside anyone.</p></div>
+    </section>
+
+    <section>
+      <h3>How the humans drive</h3>
+      <div class="slider"><label>Herding instinct <b id="vHerd"></b></label>
+        <input type="range" id="sHerd" min="0" max="1" step="0.01" value="0.7">
+        <p>Contentment with sitting in a clump: the higher this is, the less often a held-up driver bothers to pass at all.</p></div>
+      <div class="slider"><label>Fear of passing trucks <b id="vFear"></b></label>
+        <input type="range" id="sFear" min="0" max="1" step="0.01" value="0.7">
+        <p>Demands a much bigger gap before overtaking a truck — or refuses entirely and settles in behind. Everyone behind inherits the truck's speed.</p></div>
+    </section>
+
+    <section id="legend">
+      <h3>What to watch</h3>
+      <ul>
+        <li>Toggle <b>trucks keep right</b> off: elephant races nearly double the boxed-in count — the clearest effect in this demo.</li>
+        <li>Crank <b>vehicles</b> past ~110: no driving style saves a road that's simply over capacity (same lesson as the Ring).</li>
+        <li>The honest surprise: in this model, calm lane-holding beats eager passing at density — "doing less" wins again.</li>
+      </ul>
+      <p class="foot"><b>Open question</b> — this is the lab's least-settled demo. IDM + gap-acceptance lane changes produce only mild packs (8–16 vehicles), not the giant rolling globs the <a href="../docs/thesis.md">thesis</a> describes. Either real packs need mechanisms we haven't modeled yet (defensive closing against cut-ins, rubbernecking, speed variance) — or this traffic source is smaller than believed. The lab exists to find out.</p>
+    </section>
+  </aside>
+</main>
+
+<script src="../js/lab.js"></script>
+<script>LAB.nav("05");</script>
+<script src="trucks.js"></script>
+</body>
+</html>
