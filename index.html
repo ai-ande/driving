@@ -58,6 +58,7 @@
       <div class="subnums">
         <span>Southbound: <b id="mThruS">–</b> cars/h · <b id="mTimeS">–</b> · <b id="mStopsS">–</b> stops</span>
         <span>Cross streets: <b id="mThruX">–</b> cars/h</span>
+        <span id="bridgeChip" class="chip"></span>
         <span id="spill" class="warn"></span>
         <span class="dim"><span id="mCars">0</span> cars on the map</span>
       </div>
@@ -100,6 +101,20 @@
       <div class="slider"><label>Demand <b id="vDemand"></b></label>
         <input type="range" id="sDemand" min="0.2" max="2" step="0.05">
         <p>1.0× ≈ weekday rush hour on this stretch.</p></div>
+      <div class="slider"><label><input type="checkbox" id="sProfile"> Replay a measured weekday <b id="vProfile"></b></label>
+        <input type="range" id="sTod" min="300" max="1320" step="5" value="495" disabled>
+        <p>Feeds the sim with real traffic counts: City of Austin radar at Lamar&nbsp;&amp;&nbsp;Collier (northbound) and Lamar&nbsp;&amp;&nbsp;Sandra&nbsp;Muraida (southbound), averaged over Tue–Thu 2019. The clock advances as the sim runs; drag to jump. Cross-street volumes follow the same daily shape (no per-street counts exist).</p></div>
+    </section>
+
+    <section>
+      <h3>Live right now</h3>
+      <p class="small">Click any intersection on the map for its real signal record and a <b>live city camera</b> view (City of Austin feeds, no key needed).</p>
+      <div class="ttrow">
+        <input type="text" id="ttKey" placeholder="TomTom API key (free)" autocomplete="off">
+        <button id="ttGo">Check live speed</button>
+      </div>
+      <div id="ttOut" class="small"></div>
+      <p class="small dim">Live corridor speeds need a free key from developer.tomtom.com — it stays in your browser (localStorage), never in the repo.</p>
     </section>
 
     <section id="legend">
@@ -110,12 +125,20 @@
         <li><span class="dotdemo" style="background:#777;outline:2px solid #e2a13c"></span> amber ring = green light / gap open, driver hasn’t reacted yet</li>
         <li>5th St runs one-way east, 6th St one-way west — Austin’s downtown couplet.</li>
       </ul>
-      <p class="foot">v0.1 — through traffic only (no turns yet). Signal timings are simplified two-phase, not the city’s actual plans. Street &amp; water geometry © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors.</p>
+      <p class="foot">v0.2 — through traffic only (no turns yet). Signal timings are simplified two-phase, not the city’s actual plans (those are being requested). 3rd St is unsignalized and 15th St passes <em>over</em> Lamar — both verified against the city signal registry. Street &amp; water geometry © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; traffic counts, signal records &amp; cameras: <a href="https://data.austintexas.gov">City of Austin open data</a>.</p>
     </section>
   </aside>
 </main>
 
+<div id="infocard" hidden>
+  <button id="cardClose">×</button>
+  <h4 id="cardTitle"></h4>
+  <div id="cardBody"></div>
+</div>
+
 <script src="js/geometry.js"></script>
+<script src="js/demand_profile.js"></script>
+<script src="js/austin_meta.js"></script>
 <script src="js/model.js"></script>
 <script src="js/render.js"></script>
 <script src="js/main.js"></script>

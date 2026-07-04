@@ -55,6 +55,19 @@ prediction is the marketing strategy:
 4. **Austin Transportation & Public Works** — the city runs an annual signal-retiming
    program. A polite email: "I built a public visualization of the Lamar corridor; happy to
    add your real timing plans." Even a reply is a story ("city engineer reacts").
+
+   The actual timing plans aren't on the open-data portal; file a Texas Public Information
+   Act request via austintexas.gov's public information portal:
+
+   > *"I request the current traffic signal timing plans (cycle length, phase splits,
+   > offsets, and time-of-day schedule — Synchro reports or timing sheets are ideal) for
+   > the signals on Lamar Blvd between Barton Springs Rd and W 12th St inclusive: signal
+   > IDs 121 (Barton Springs), 1018 (Toomey), 120 (Riverside), 229 (Cesar Chavez / Sandra
+   > Muraida), 119 (5th), 118 (6th), 128 (9th), 117 (10th), 116 (12th) — retiming corridors
+   > 'Barton Springs', 'Downtown' and 'Downtown West'."*
+
+   With those in hand, the sim gains an **"Austin's actual plan"** preset and the public
+   claim upgrades from "vs a generic plan" to "vs the city's real timing."
 5. **UT Austin Center for Transportation Research** — potential validation, data, or a
    student project partnership.
 6. **YouTubers** (CGP Grey, Practical Engineering, Not Just Bikes adjacent) once v0.2's ring

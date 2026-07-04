@@ -26,6 +26,14 @@ const sliders = {
   demand: { el: $("sDemand"), lbl: $("vDemand"), fmt: v => v.toFixed(2) + "×" },
 };
 const waveChk = $("sWave"), waveSpd = $("sWaveSpd"), waveLbl = $("vWave");
+const profChk = $("sProfile"), todSlider = $("sTod"), profLbl = $("vProfile");
+
+const fmtClock = (min) => {
+  min = ((min % 1440) + 1440) % 1440;
+  const h = Math.floor(min / 60), m = Math.floor(min % 60);
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+};
 
 let settledAt = 0;
 function applyCfg(from) {
@@ -38,6 +46,9 @@ function applyCfg(from) {
   c.waveSpeed = parseFloat(waveSpd.value) * 0.44704;
   waveLbl.textContent = c.wave ? Math.round(parseFloat(waveSpd.value)) + " mph" : "off";
   waveSpd.disabled = !c.wave;
+  c.profileMode = profChk.checked && !!sim.profile;
+  todSlider.disabled = !c.profileMode;
+  sliders.demand.el.disabled = c.profileMode;
   sim.retime();
   sim.applyDriverParams();
   if (from === "mix") sim.remix();
@@ -68,6 +79,18 @@ for (const [k, s] of Object.entries(sliders))
   s.el.addEventListener("input", () => { applyCfg(k); activatePreset(null); });
 waveChk.addEventListener("change", () => { applyCfg("wave"); activatePreset(null); });
 waveSpd.addEventListener("input", () => { applyCfg("wave"); activatePreset(null); });
+profChk.addEventListener("change", () => {
+  if (profChk.checked && !sim.profile) { profChk.checked = false; return; }
+  if (profChk.checked) sim.cfg.timeOfDay = parseFloat(todSlider.value);
+  applyCfg("profile");
+});
+let todDragging = false;
+todSlider.addEventListener("pointerdown", () => { todDragging = true; });
+todSlider.addEventListener("pointerup", () => { todDragging = false; });
+todSlider.addEventListener("input", () => {
+  sim.cfg.timeOfDay = parseFloat(todSlider.value);
+  settledAt = sim.t;
+});
 
 /* ---------- URL hash state ---------- */
 function writeHash() {
@@ -76,7 +99,8 @@ function writeHash() {
     const c = sim.cfg;
     const h = ["r" + c.react, "g" + c.gap, "a" + c.accel, "n" + c.antic, "m" + c.mix,
                "c" + c.cycle, "s" + c.split, "w" + (c.wave ? 1 : 0), "v" + waveSpd.value,
-               "d" + c.demand].join("_");
+               "d" + c.demand, "p" + (c.profileMode ? 1 : 0),
+               "t" + Math.round(c.timeOfDay)].join("_");
     history.replaceState(null, "", "#" + h);
   }, 300);
 }
@@ -90,6 +114,10 @@ function readHash() {
   if (!("r" in m)) return false;
   setSliders({ react: m.r, gap: m.g, accel: m.a, antic: m.n, mix: m.m,
                cycle: m.c, split: m.s, wave: m.w === 1, waveMph: m.v, demand: m.d });
+  if (m.p === 1) {
+    profChk.checked = true;
+    if ("t" in m) { todSlider.value = m.t; sim.cfg.timeOfDay = m.t; }
+  }
   return true;
 }
 
@@ -171,6 +199,21 @@ function renderBaseline() {
 }
 function updateMetrics() {
   const m = sim.metrics();
+  // measured-weekday replay: sync slider to advancing clock, show rates + validation chip
+  if (sim.cfg.profileMode && sim.profile) {
+    if (!todDragging) todSlider.value = sim.cfg.timeOfDay;
+    const nb = Math.round(sim.profileValue(sim.profile.nbVeh, sim.cfg.timeOfDay));
+    const sb = Math.round(sim.profileValue(sim.profile.sbVeh, sim.cfg.timeOfDay));
+    profLbl.textContent = `${fmtClock(sim.cfg.timeOfDay)} · NB ${nb} / SB ${sb} veh/h`;
+    const mNB = sim.measuredBridgeMph("NB"), mSB = sim.measuredBridgeMph("SB");
+    const sNB = sim.simBridgeMph("NB"), sSB = sim.simBridgeMph("SB");
+    const f = (v) => v == null ? "–" : Math.round(v);
+    $("bridgeChip").textContent =
+      `Speed at the bridge — sim: ${f(sNB)} / ${f(sSB)} mph · measured 2019: ${f(mNB)} / ${f(mSB)} (NB/SB)`;
+  } else {
+    profLbl.textContent = sim.profile ? "off" : "data unavailable";
+    $("bridgeChip").textContent = "";
+  }
   $("mThru").textContent = m.NB.thru;
   $("mTime").textContent = fmtTime(m.NB.time);
   $("mStops").textContent = isNaN(m.NB.stops) ? "–" : m.NB.stops.toFixed(1);
@@ -244,7 +287,109 @@ function frame(now) {
   tsd.blit();
   metricTimer += dt;
   if (metricTimer > 0.33) { updateMetrics(); metricTimer = 0; }
-  $("clock").textContent = (ff ? "⏩ " : "") + fmtTime(sim.t);
+  $("clock").textContent = (ff ? "⏩ " : "") +
+    (sim.cfg.profileMode ? fmtClock(sim.cfg.timeOfDay) : fmtTime(sim.t));
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+/* ---------- intersection info card (real signal records + live cameras) ---------- */
+const card = $("infocard"), cardTitle = $("cardTitle"), cardBody = $("cardBody");
+let camTimer = null;
+function closeCard() {
+  card.hidden = true;
+  R.selectedKey = null;
+  if (camTimer) { clearInterval(camTimer); camTimer = null; }
+}
+$("cardClose").addEventListener("click", closeCard);
+function openCard(key, px, py) {
+  const it = sim.geo.intersections.find(i => i.key === key);
+  const meta = (typeof AUSTIN_META !== "undefined" && AUSTIN_META.intersections[key]) || {};
+  R.selectedKey = key;
+  cardTitle.textContent = it.name + " & Lamar";
+  const rows = [];
+  if (it.bridge) {
+    rows.push(`<div class="row"><b>Grade-separated:</b> ${it.name} passes <b>over</b> Lamar on a bridge — no signal, no conflict. (Found via OSM bridge tags; confirmed by the city signal registry.)</div>`);
+  } else if (!it.signalized) {
+    rows.push(`<div class="row"><b>No traffic signal here</b> — verified against the City of Austin signal registry.</div>`);
+  }
+  if (meta.signalId && !it.bridge && it.signalized) {
+    rows.push(`<div class="row">City signal <b>#${meta.signalId}</b> — ${meta.signalName}</div>`);
+    if (meta.zone) rows.push(`<div class="row">Retiming corridor: <b>${meta.zone}</b>${meta.retimedFY ? ` · last retimed FY${meta.retimedFY}` : ""}${meta.retimedDate ? ` (${meta.retimedDate})` : ""}</div>`);
+    rows.push(`<div class="row">Leading pedestrian interval: <b>${meta.lpi ? "yes" : "no"}</b></div>`);
+  } else if (meta.signalId && meta.signalDist > 120) {
+    rows.push(`<div class="row">Nearest city signal: #${meta.signalId} ${meta.signalName} (~${meta.signalDist} m away)</div>`);
+  }
+  if (meta.camera) {
+    rows.push(`<img id="camImg" alt="live camera" src="${meta.camera.url}?t=${Date.now()}">` +
+      `<div class="camcap">LIVE · City of Austin camera #${meta.camera.id} — ${meta.camera.name}` +
+      ` <a href="${meta.camera.url}" target="_blank" rel="noopener">open</a></div>`);
+  } else {
+    rows.push(`<div class="row dim">No city camera at this corner.</div>`);
+  }
+  rows.push(`<div class="row dim" style="margin-top:6px">Sources: City of Austin open data (signals, retiming, cameras)</div>`);
+  cardBody.innerHTML = rows.join("");
+  card.hidden = false;
+  const r = card.getBoundingClientRect();
+  card.style.left = Math.min(Math.max(8, px + 18), window.innerWidth - r.width - 12) + "px";
+  card.style.top = Math.min(Math.max(60, py - 40), window.innerHeight - r.height - 12) + "px";
+  if (camTimer) clearInterval(camTimer);
+  if (meta.camera) {
+    camTimer = setInterval(() => {
+      const img = $("camImg");
+      if (img) img.src = meta.camera.url + "?t=" + Date.now();
+    }, 5000);
+  }
+}
+let downAt = null;
+map.addEventListener("pointerdown", (e) => { downAt = { x: e.clientX, y: e.clientY }; });
+map.addEventListener("pointerup", (e) => {
+  if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return;
+  const r = map.getBoundingClientRect();
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  let best = null, bd = 1e9;
+  for (const it of sim.geo.intersections) {
+    const d = Math.hypot(R.sx(it.x) - px, R.sy(it.y) - py);
+    if (d < bd) { bd = d; best = it; }
+  }
+  if (typeof AUSTIN_META !== "undefined") {
+    for (const [key, m] of Object.entries(AUSTIN_META.intersections)) {
+      if (!m.camera) continue;
+      const d = Math.hypot(R.sx(m.camera.x) - px, R.sy(m.camera.y) - py);
+      if (d < bd) { bd = d; best = sim.geo.intersections.find(i => i.key === key); }
+    }
+  }
+  if (best && bd < 18) openCard(best.key, e.clientX, e.clientY);
+  else closeCard();
+});
+
+/* ---------- optional live speeds (TomTom Flow Segment Data) ---------- */
+const ttKey = $("ttKey"), ttOut = $("ttOut");
+ttKey.value = localStorage.getItem("tomtomKey") || "";
+$("ttGo").addEventListener("click", async () => {
+  const key = ttKey.value.trim();
+  if (!key) { ttOut.innerHTML = `<span class="err">Paste a TomTom API key first (free at developer.tomtom.com).</span>`; return; }
+  localStorage.setItem("tomtomKey", key);
+  ttOut.textContent = "Fetching live segments…";
+  const ref = sim.geo.ref;
+  const pts = [0.18, 0.38, 0.55, 0.72, 0.9].map(f => {
+    const p = sim.lamarPath.at(f * sim.lamarPath.len);
+    return [ref.lat + p.y / 110950, ref.lon + p.x / (111320 * Math.cos(ref.lat * Math.PI / 180))];
+  });
+  try {
+    const res = await Promise.all(pts.map(([la, lo]) =>
+      fetch(`https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?point=${la.toFixed(6)},${lo.toFixed(6)}&unit=MPH&key=${encodeURIComponent(key)}`)
+        .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })));
+    const cur = res.map(r => r.flowSegmentData.currentSpeed);
+    const ff = res.map(r => r.flowSegmentData.freeFlowSpeed);
+    const avg = (a) => Math.round(a.reduce((s, v) => s + v, 0) / a.length);
+    const m = sim.metrics();
+    const simMph = isNaN(m.NB.time) ? null :
+      Math.round((sim.measureNB.s1 - sim.measureNB.s0) / m.NB.time * 2.23694);
+    ttOut.innerHTML = `Lamar right now (TomTom): <b>${avg(cur)} mph</b> · free-flow ${avg(ff)} mph` +
+      (simMph ? ` — sim northbound: <b>${simMph} mph</b>` : "") +
+      ` <span class="dim">(${new Date().toLocaleTimeString()})</span>`;
+  } catch (err) {
+    ttOut.innerHTML = `<span class="err">Live fetch failed (${err.message}). Check the key — or the daily free quota.</span>`;
+  }
+});

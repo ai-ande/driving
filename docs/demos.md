@@ -4,36 +4,42 @@ Principle: no lectures. Each demo is a toy the visitor plays with, where the *di
 theirs. Sliders change one believable human behavior; the metrics and the picture do the
 arguing.
 
-## v0.1 — Lamar & the Lights ✅ (this repo)
+## v0.2 — Lamar & the Lights ✅ (this repo)
 
 **Claims tested:** #7 (red-light behavior + signal timing), #5 partially (anticipation /
 coasting), the "ripple" core idea, and the trained-share thought experiment.
 
-Real geometry: Lamar Blvd from Barton Springs Rd to 15th St, 11 real signalized
-intersections, one-way 5th/6th couplet, Lady Bird Lake, Shoal Creek — all from OpenStreetMap.
+Real geometry: Lamar Blvd from Barton Springs Rd to 15th St, the corridor's 9 real
+signalized intersections, one-way 5th/6th couplet, Lady Bird Lake, Shoal Creek — all from
+OpenStreetMap. v0.2 integrated City of Austin open data: measured 2019 weekday demand
+replay (radar counts), per-intersection signal records, live camera views, optional live
+TomTom speeds — and the data *corrected the map*: 3rd St has no signal, and 15th St passes
+over Lamar on a bridge (both had been simulated as red lights in v0.1).
 
 Physics: Intelligent Driver Model (standard car-following used in research) + explicit
 human reaction delay at startup + a "looking ahead" behavior that converts late hard braking
 into early gentle coasting (latest-gentle-liftoff).
 
-Measured results (steady state, 6-minute windows, v0.1 defaults):
+Measured results (steady state, 6-minute windows, v0.2 corridor):
 
 | Scenario | NB cars/hr | NB avg trip | NB stops/car |
 |---|---|---|---|
 | Free flow (reference) | — | 2:36 | 0 |
-| Drivers today, 1.0× demand | 1,260 | 6:25 | 6.2 |
-| Trained drivers, same lights | 1,220 | 5:17 | 3.8 |
-| Trained + green wave | 1,240 | **3:17** | **0.5** |
-| Drivers today, 1.5× demand | 1,300 (capped) + 214 cars stuck off-map | 7:10 | 6.7 |
-| Trained drivers, 1.5× demand | **1,880 (all demand served)** | 6:06 | 5.8 |
-| Trained + wave, 1.5× demand | 1,870 (all served) | 3:47 | 0.9 |
+| Drivers today, 1.0× demand | 1,250 | 5:20 | 4.2 |
+| Trained drivers, same lights | 1,240 | 4:32 | 2.6 |
+| Trained + green wave | 1,250 | **3:17** | **0.5** |
+| Drivers today, 1.5× demand | 1,300 (capped) + 213 cars stuck off-map | 6:11 | 4.8 |
+| Trained drivers, 1.5× demand | **1,890 (all demand served)** | 5:11 | 3.7 |
+| Trained + wave, 1.5× demand | 1,890 (all served) | 3:46 | 0.9 |
 
 Headline: **behavior alone adds ~45% capacity to the same road**; behavior + signal
-coordination gets a full rush hour within ~40 seconds of empty-road travel time.
+coordination gets a full rush hour within ~40 seconds of empty-road travel time. In
+measured-weekday replay at the 8 AM peak, the sim's speed at the Lamar bridge lands within
+a few mph of what the city's radar actually recorded in 2019 — with no tuning against it.
 
-Next polish ideas: click-a-car "ride along" camera; per-intersection timing editors; turn
-movements; pedestrian phases; actuated (sensor) signals; a "share this setting" button
-surfacing the URL-hash state that already exists.
+Next polish ideas: the city's real timing plans via public-records request ("Austin's
+actual plan" preset); click-a-car "ride along" camera; per-intersection timing editors;
+turn movements; pedestrian phases; actuated (sensor) signals.
 
 ## v0.2 — The Ring Road (phantom jams)
 

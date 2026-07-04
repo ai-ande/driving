@@ -6,8 +6,14 @@ lanes required. This repo turns that claim into playable, falsifiable demos.**
 ## Demo #1: Lamar & the Lights
 
 A traffic simulation of the real Lamar Blvd corridor in Austin, TX — Barton Springs Rd
-across the Lady Bird Lake bridge up to 15th St, with all 11 real signalized intersections
-and the one-way 5th/6th couplet, built from OpenStreetMap geometry.
+across the Lady Bird Lake bridge up to 15th St, with the corridor's **9 real signalized
+intersections** and the one-way 5th/6th couplet, built from OpenStreetMap geometry and
+calibrated against City of Austin open data.
+
+> Integrating the city's signal registry corrected our own map: 3rd St & Lamar has **no
+> signal**, and 15th St **passes over Lamar on a bridge** (OSM `bridge=yes`, confirmed by
+> the registry — the signal there is 15th/Enfield, 250 m west). Two phantom red lights,
+> removed by data.
 
 **Run it:** any static server, e.g.
 
@@ -29,13 +35,40 @@ python3 -m http.server 8347
    within ~40s of empty-road time at full rush-hour demand.
 4. Drag **Demand to 1.5×**: today's drivers cap out and pile a backlog off the map;
    trained drivers move ~45% more cars through the identical road.
-5. Play with the individual sliders (reaction, cushion, acceleration, looking-ahead,
+5. Check **“Replay a measured weekday”**: the sim is fed the City of Austin's actual radar
+   counts (Tue–Thu 2019 average) — northbound from the Lamar/Collier sensor, southbound
+   from Lamar/Sandra Muraida. The clock runs through the day; the scoreboard compares the
+   sim's speed at the bridge against what the radar actually measured at that time of day.
+6. **Click any intersection** for its real city record — signal ID, retiming corridor and
+   date, leading-pedestrian-interval flag — plus a **live traffic camera** view of that
+   corner, straight from the city's public feeds.
+7. Play with the individual sliders (reaction, cushion, acceleration, looking-ahead,
    share-of-trained-drivers) and the signal timing. Settings live in the URL hash — copy
    the link to share a scenario.
+
+Optional: paste a free TomTom API key in the "Live right now" panel to compare the sim
+against Lamar's live congestion at this very moment (the key stays in your browser).
 
 The dark strip below the map is a **time–space diagram** — the standard traffic-engineering
 x-t plot. Stop-and-go waves appear as red-banded fans; a working green wave appears as
 unbroken diagonal streaks.
+
+### Real data in the sim
+
+| Data | Source | Freshness | Used for |
+|---|---|---|---|
+| Street & water geometry | OpenStreetMap (Overpass) | current | the map itself, lane paths, the 15th St overpass |
+| Traffic volumes & speeds | [Radar Traffic Counts](https://data.austintexas.gov/Transportation-and-Mobility/Radar-Traffic-Counts/i626-g7ub) | program ended Sept 2021 — 2019 used | measured-weekday demand replay + bridge-speed validation |
+| Signal records | [Traffic Signals](https://data.austintexas.gov/Transportation-and-Mobility/Traffic-Signals-and-Pedestrian-Signals/p53x-x73x) | live (maintained) | which crossings really have lights, IDs, LPI flags |
+| Retiming history | [Signal Re-Timing](https://data.austintexas.gov/Transportation-and-Mobility/Traffic-Signal-Re-Timing/g8w2-8uap) | live | per-corridor "last retimed" shown in intersection cards |
+| Traffic cameras | [Traffic Cameras](https://data.austintexas.gov/Transportation-and-Mobility/Traffic-Cameras/b4k4-adkb) | **live snapshots** | click-an-intersection camera views |
+| Live corridor speeds | TomTom Flow Segment Data | **live** (bring your own free key) | "Lamar right now" vs the sim |
+
+Rebuild the data files any time: `python3 tools/build_austin_data.py` (regenerates
+`js/demand_profile.js` + `js/austin_meta.js`). Not yet integrated: the city's actual
+signal timing plans (cycle/split/offset) — not published anywhere; obtainable via a Texas
+Public Information Act request (template in [docs/outreach.md](docs/outreach.md)), after
+which an "Austin's actual plan" preset becomes possible.
 
 ### How the model works (honesty section)
 
@@ -70,6 +103,8 @@ contributors (ODbL), extracted via the reproducible pipeline in `tools/`
 ```
 index.html, css/, js/     the simulator (no build step, no dependencies)
 js/geometry.js            generated real-street geometry (do not hand-edit)
-tools/                    OSM extraction pipeline (Overpass queries + builder)
+js/demand_profile.js      generated measured 2019 weekday demand + speeds (do not hand-edit)
+js/austin_meta.js         generated signal records + camera feeds (do not hand-edit)
+tools/                    data pipelines: OSM extraction + City of Austin open data
 docs/                     thesis, evidence, demo roadmap, outreach plan
 ```

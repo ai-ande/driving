@@ -103,6 +103,12 @@ class Renderer {
       mkGuide(g.roads[k].pts, 0, "center");
     // bridge segment on Lamar (between Riverside and Cesar Chavez)
     this.bridge = { s0: I.riverside.sLamar + 55, s1: I.cesar.sLamar - 38 };
+    // grade-separated crossings (15th St passes OVER Lamar)
+    this.overpasses = g.intersections.filter(i => i.bridge).map(i => ({
+      key: i.key, roadKey: i.key, path: new Path(g.roads[i.key].pts), sC: i.sCross,
+    }));
+    this.overpassRoads = new Set(this.overpasses.map(o => o.roadKey));
+    this.selectedKey = null;
     // one-way arrows for 5th/6th
     this.arrows = [];
     for (const k of ["fifth", "sixth"]) {
@@ -246,46 +252,30 @@ class Renderer {
       }
     }
 
-    // cars
+    // cars (overpass roads drawn later, above their deck)
     const mixed = sim.cfg.mix > 0.02 && sim.cfg.mix < 0.98;
     for (const lane of sim.lanes) {
-      for (const car of lane.cars) {
-        const p = lane.path.at(car.s - car.len / 2);
-        const nx = p.dy, ny = -p.dx;
-        const X = this.sx(p.x + nx * lane.offset), Y = this.sy(p.y + ny * lane.offset);
-        const ang = Math.atan2(-p.dy, p.dx);
-        const Lpx = Math.max(car.len * sc, 3.4);
-        const Wpx = Math.max(1.9 * sc, 2.3);
-        c.save();
-        c.translate(X, Y);
-        c.rotate(ang);
-        if (car.braking) {
-          c.fillStyle = "rgba(233,64,50,0.4)";
-          c.beginPath();
-          c.roundRect(-Lpx / 2 - 2.5, -Wpx / 2 - 2.5, Lpx + 5, Wpx + 5, 3);
-          c.fill();
-        }
-        c.fillStyle = speedColor(car.v, lane.limit);
-        c.beginPath();
-        c.roundRect(-Lpx / 2, -Wpx / 2, Lpx, Wpx, Math.min(2.5, Wpx / 2.5));
-        c.fill();
-        if (car.waiting) {
-          c.strokeStyle = "#e2a13c";
-          c.lineWidth = 1.4;
-          c.strokeRect(-Lpx / 2 - 1.5, -Wpx / 2 - 1.5, Lpx + 3, Wpx + 3);
-        }
-        if (mixed && car.trained && Lpx > 4) {
-          c.fillStyle = "rgba(255,255,255,0.95)";
-          c.beginPath();
-          c.arc(0, 0, Math.max(1, Wpx * 0.22), 0, 7);
-          c.fill();
-        }
-        c.restore();
-      }
+      if (this.overpassRoads.has(lane.roadKey)) continue;
+      for (const car of lane.cars) this.drawCar(lane, car, mixed);
+    }
+    this.drawOverpasses();
+    for (const lane of sim.lanes) {
+      if (!this.overpassRoads.has(lane.roadKey)) continue;
+      for (const car of lane.cars) this.drawCar(lane, car, mixed);
     }
 
     // signal dots (Lamar-approach state), ring = cross state
     const SIGCOL = { g: "#2ecc71", y: "#f1c40f", r: "#e74c3c" };
+    if (this.selectedKey) {
+      const it = sim.geo.intersections.find(i => i.key === this.selectedKey);
+      if (it) {
+        c.strokeStyle = "#2e7fbf";
+        c.lineWidth = 2.5;
+        c.beginPath();
+        c.arc(this.sx(it.x), this.sy(it.y), 13, 0, 7);
+        c.stroke();
+      }
+    }
     for (const ctrl of sim.controllers) {
       const X = this.sx(ctrl.inter.x), Y = this.sy(ctrl.inter.y);
       const r = Math.max(3.2, Math.min(6, 2.6 + sc * 2));
@@ -304,8 +294,89 @@ class Renderer {
       c.fill();
     }
 
+    this.drawCameras();
     this.labels();
     this.chrome();
+  }
+
+  drawCar(lane, car, mixed) {
+    const c = this.ctx, sc = this.view.scale;
+    const p = lane.path.at(car.s - car.len / 2);
+    const nx = p.dy, ny = -p.dx;
+    const X = this.sx(p.x + nx * lane.offset), Y = this.sy(p.y + ny * lane.offset);
+    const ang = Math.atan2(-p.dy, p.dx);
+    const Lpx = Math.max(car.len * sc, 3.4);
+    const Wpx = Math.max(1.9 * sc, 2.3);
+    c.save();
+    c.translate(X, Y);
+    c.rotate(ang);
+    if (car.braking) {
+      c.fillStyle = "rgba(233,64,50,0.4)";
+      c.beginPath();
+      c.roundRect(-Lpx / 2 - 2.5, -Wpx / 2 - 2.5, Lpx + 5, Wpx + 5, 3);
+      c.fill();
+    }
+    c.fillStyle = speedColor(car.v, lane.limit);
+    c.beginPath();
+    c.roundRect(-Lpx / 2, -Wpx / 2, Lpx, Wpx, Math.min(2.5, Wpx / 2.5));
+    c.fill();
+    if (car.waiting) {
+      c.strokeStyle = "#e2a13c";
+      c.lineWidth = 1.4;
+      c.strokeRect(-Lpx / 2 - 1.5, -Wpx / 2 - 1.5, Lpx + 3, Wpx + 3);
+    }
+    if (mixed && car.trained && Lpx > 4) {
+      c.fillStyle = "rgba(255,255,255,0.95)";
+      c.beginPath();
+      c.arc(0, 0, Math.max(1, Wpx * 0.22), 0, 7);
+      c.fill();
+    }
+    c.restore();
+  }
+
+  drawOverpasses() {
+    // redraw the crossing street's deck ABOVE Lamar + its cars (15th flies over)
+    const c = this.ctx, sc = this.view.scale;
+    for (const o of this.overpasses) {
+      const s0 = Math.max(0, o.sC - 95), s1 = Math.min(o.path.len, o.sC + 95);
+      const pts = [];
+      for (let s = s0; s <= s1; s += 8) {
+        const p = o.path.at(s);
+        pts.push([p.x, p.y, p.dx, p.dy]);
+      }
+      const w = this.roadWidth(o.roadKey);
+      c.lineCap = "butt";
+      // shadow, casing, fill
+      for (const [style, lw] of [["rgba(35,48,58,0.18)", w + Math.max(5, 3 * sc)],
+                                 ["#8d8877", w + Math.max(2.5, 1.4 * sc)],
+                                 ["#e9e5da", w]]) {
+        c.strokeStyle = style;
+        c.lineWidth = lw;
+        c.beginPath();
+        pts.forEach(([x, y], i) => i ? c.lineTo(this.sx(x), this.sy(y)) : c.moveTo(this.sx(x), this.sy(y)));
+        c.stroke();
+      }
+      c.lineCap = "round";
+    }
+  }
+
+  drawCameras() {
+    if (typeof AUSTIN_META === "undefined" || this.view.scale < 0.2) return;
+    const c = this.ctx;
+    for (const [key, m] of Object.entries(AUSTIN_META.intersections)) {
+      if (!m.camera) continue;
+      const X = this.sx(m.camera.x), Y = this.sy(m.camera.y);
+      c.fillStyle = "#fffdf7";
+      c.strokeStyle = "#6f6a5e";
+      c.lineWidth = 1.2;
+      c.beginPath();
+      c.roundRect(X - 6, Y - 4.5, 12, 9, 2.5);
+      c.fill(); c.stroke();
+      c.fillStyle = "#4a7fa5";
+      c.beginPath();
+      c.arc(X, Y, 2.2, 0, 7);
+      c.fill();
+    }
   }
 
   labels() {

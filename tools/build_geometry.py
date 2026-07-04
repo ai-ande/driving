@@ -104,6 +104,7 @@ XWIN = 840
 roads = {}
 for key, (names, cls) in SPEC.items():
     pts, ow_e, ow_w, ow_yes, ow_tot = [], 0, 0, 0, 0
+    bridge_segs = []  # segments of bridge-tagged ways (to detect grade separation at Lamar)
     for w in ways:
         t = w.get("tags", {})
         if t.get("name") in names and t.get("highway") not in BAD_HW:
@@ -111,6 +112,8 @@ for key, (names, cls) in SPEC.items():
             if len(wp) < 2:
                 continue
             pts += wp
+            if t.get("bridge") == "yes":
+                bridge_segs.append(wp)  # one point-list per bridge way
             ow_tot += 1
             if t.get("oneway") == "yes":
                 ow_yes += 1
@@ -130,7 +133,8 @@ for key, (names, cls) in SPEC.items():
     # one-way only if strongly one-directional; dual carriageways have both E and W oneway ways
     if ow_tot and ow_yes / ow_tot > 0.75 and (ow_e == 0 or ow_w == 0 or max(ow_e, ow_w) / (ow_e + ow_w) > 0.85):
         oneway = 1 if ow_e > ow_w else -1
-    roads[key] = {"name": sorted(names)[0], "cls": cls, "pts": line, "oneway": oneway}
+    roads[key] = {"name": sorted(names)[0], "cls": cls, "pts": line, "oneway": oneway,
+                  "bridge_segs": bridge_segs}
 
 # ---------------- Intersections with Lamar ----------------
 def seg_int(p, q, a, b):
@@ -201,9 +205,34 @@ for key, r in roads.items():
     sL, _ = arc_s(lam, hit)
     sC, _ = arc_s(r["pts"], hit)
     sig = min(math.hypot(sx - hit[0], sy - hit[1]) for sx, sy in signals) if signals else 999
+    # grade separation: a bridge-tagged way of this street passes over the crossing AND
+    # spans both sides of Lamar (15th flies over Lamar). Creek decks that merely touch
+    # the corner (3rd, 10th over Shoal Creek) sit on one side only and must not count.
+    def seg_dist(p, a, b):
+        vx, vy = b[0] - a[0], b[1] - a[1]
+        L2 = vx * vx + vy * vy or 1e-9
+        t = max(0.0, min(1.0, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / L2))
+        return math.hypot(p[0] - a[0] - vx * t, p[1] - a[1] - vy * t)
+    # local Lamar direction at the crossing -> signed lateral offset of a point
+    li = max(1, min(len(lam) - 1, next((j for j in range(len(lam)) if lam[j][1] > hit[1]), 1)))
+    ldx, ldy = lam[li][0] - lam[li - 1][0], lam[li][1] - lam[li - 1][1]
+    lnorm = math.hypot(ldx, ldy) or 1e-9
+    def side(p):  # + east of Lamar, - west (signed cross product)
+        return ((p[0] - hit[0]) * ldy - (p[1] - hit[1]) * ldx) / lnorm
+    bridge = False
+    for wp in r["bridge_segs"]:
+        near = any(seg_dist(hit, wp[j], wp[j + 1]) < 15 for j in range(len(wp) - 1))
+        sides = [side(p) for p in wp]
+        if near and min(sides) < -20 and max(sides) > 20:
+            bridge = True
+            break
+    # signalized only if an OSM signal node sits at the crossing (verified against the
+    # City of Austin signal registry: 3rd St and the 15th St overpass have no signal)
+    signalized = (not bridge) and sig < 90
     inters.append({"key": key, "name": NAMES[key], "x": round(hit[0], 1), "y": round(hit[1], 1),
                    "sLamar": round(sL, 1), "sCross": round(sC, 1), "cls": r["cls"],
-                   "oneway": r["oneway"], "signalDist": round(sig, 1)})
+                   "oneway": r["oneway"], "signalDist": round(sig, 1),
+                   "signalized": signalized, "bridge": bridge})
 inters.sort(key=lambda i: i["sLamar"])
 
 # ---------------- Water ----------------
@@ -300,7 +329,7 @@ geo = {
     "ref": {"lat": REFLAT, "lon": REFLON},
     "lamar": rnd(lam),
     "roads": {k: {"name": r["name"], "cls": r["cls"], "oneway": r["oneway"], "pts": rnd(r["pts"])}
-              for k, r in roads.items()},
+              for k, r in roads.items()},  # bridge_pts intentionally not emitted
     "intersections": inters,
     "water": {"lake": rnd(lake), "ponds": [rnd(p) for p in ponds],
               "creeks": [{"name": c["name"], "pts": rnd(c["pts"])} for c in creeks]},
@@ -316,7 +345,8 @@ prev = None
 for i in inters:
     gap = "" if prev is None else "  (+%dm)" % (i["sLamar"] - prev)
     ow = {0: "two-way", 1: "one-way EB", -1: "one-way WB"}[i["oneway"]]
-    print("  s=%6.0f  y=%6.0f  %-18s %-6s %-10s signal@%.0fm%s" %
-          (i["sLamar"], i["y"], i["name"], i["cls"], ow, i["signalDist"], gap), file=sys.stderr)
+    kind = "BRIDGE-OVER" if i["bridge"] else ("signal" if i["signalized"] else "UNSIGNALIZED")
+    print("  s=%6.0f  y=%6.0f  %-18s %-6s %-10s %s@%.0fm%s" %
+          (i["sLamar"], i["y"], i["name"], i["cls"], ow, kind, i["signalDist"], gap), file=sys.stderr)
 print("Lamar length: %.0f m, %d pts" % (sum(math.hypot(lam[i+1][0]-lam[i][0], lam[i+1][1]-lam[i][1]) for i in range(len(lam)-1)), len(lam)), file=sys.stderr)
 print("ponds: %d, creeks: %d" % (len(ponds), len(creeks)), file=sys.stderr)

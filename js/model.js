@@ -148,6 +148,8 @@ class Lane {
 }
 
 /* ---------- the simulation ---------- */
+const BASE_NB = 1250, BASE_SB = 850;  // veh/h that demand=1.0 injects on Lamar
+
 class Sim {
   constructor(geo) {
     this.geo = geo;
@@ -157,7 +159,13 @@ class Sim {
       react: 1.4, gap: 1.6, accel: 1.6, antic: 0.15, mix: 0,
       cycle: 90, split: 0.55, wave: false, waveSpeed: 13.4,
       demand: 1.0,
+      profileMode: false, timeOfDay: 8 * 60 + 15, // measured-2019 replay
     };
+    this.profile = (typeof DEMAND_PROFILE !== "undefined") ? DEMAND_PROFILE : null;
+    if (this.profile) {
+      const comb = this.profile.nbVeh.map((v, i) => v + this.profile.sbVeh[i]);
+      this.profilePeakComb = Math.max(...comb);
+    }
     this.buildNetwork();
     this.completions = [];      // {t, dir, dur, stops, brakes}
     this.crossCount = [];       // {t}
@@ -168,12 +176,13 @@ class Sim {
     const geo = this.geo;
     const lamarPath = new Path(geo.lamar);
     this.lamarPath = lamarPath;
-    this.controllers = geo.intersections.map((it, i) => {
+    // only real signals get controllers (3rd St is unsignalized; 15th passes over Lamar)
+    this.controllers = geo.intersections.filter(it => it.signalized).map((it, i) => {
       const c = new Controller(it, i);
       c.offsetFrac = mulberry32(1000 + i * 77)();
       return c;
     });
-    this.sLamar0 = geo.intersections[0].sLamar;
+    this.sLamar0 = this.controllers[0].inter.sLamar;
 
     const lanes = [];
     const LANE_W = 3.4;
@@ -183,18 +192,20 @@ class Sim {
     const lamarRev = new Path(geo.lamar.slice().reverse());
     const LAMAR_LIMIT = 15.6; // 35 mph
     // rush-hour-ish base demand (veh/s per lane at demand=1)
-    const nbRate = 1250 / 3600 / 2, sbRate = 850 / 3600 / 2;
+    const nbRate = BASE_NB / 3600 / 2, sbRate = BASE_SB / 3600 / 2;
     this.lamarLanes = { NB: [], SB: [] };
     for (let i = 0; i < 2; i++) {
       this.lamarLanes.NB.push(mk({ path: lamarPath, roadKey: "lamar", dirName: "NB", idx: i,
-        offset: (0.5 + i) * LANE_W, limit: LAMAR_LIMIT, spawnRate: nbRate }));
+        offset: (0.5 + i) * LANE_W, limit: LAMAR_LIMIT, spawnRate: nbRate, group: "NB" }));
       this.lamarLanes.SB.push(mk({ path: lamarRev, roadKey: "lamar", dirName: "SB", idx: i,
-        offset: (0.5 + i) * LANE_W, limit: LAMAR_LIMIT, spawnRate: sbRate }));
+        offset: (0.5 + i) * LANE_W, limit: LAMAR_LIMIT, spawnRate: sbRate, group: "SB" }));
     }
 
     // --- cross streets
     // demand (veh/h per direction at demand=1)
-    const XDEMAND = { barton: 380, cesar: 520, third: 60, fifth: 900, sixth: 900,
+    // third: 0 — no signal there in reality (City signal registry + OSM), so no
+    // simulated cross traffic. fifteenth keeps flowing: it bridges OVER Lamar.
+    const XDEMAND = { barton: 380, cesar: 520, third: 0, fifth: 900, sixth: 900,
                       ninth: 60, tenth: 70, twelfth: 260, fifteenth: 380, toomey: 0, riverside: 0 };
     const XLIMIT = 13.4; // 30 mph
     this.crossLanes = {};
@@ -211,7 +222,7 @@ class Sim {
         for (let i = 0; i < nlanes; i++) {
           list.push(mk({ path, roadKey: key, dirName, idx: i,
             offset: (two ? 0.5 + i : i - (nlanes - 1) / 2) * LANE_W,
-            limit: XLIMIT, spawnRate: r / nlanes }));
+            limit: XLIMIT, spawnRate: r / nlanes, group: "cross" }));
         }
       };
       if (two) { addDir(fwd, "EB", rate); addDir(rev, "WB", rate); }
@@ -271,13 +282,63 @@ class Sim {
     }
   }
 
+  /* ---------- measured-2019 demand profile ---------- */
+  profileValue(arr, minutes) {
+    const i = Math.floor(minutes / 15) % 96;
+    const j = (i + 1) % 96;
+    const f = (minutes % 15) / 15;
+    return arr[i] + (arr[j] - arr[i]) * f;
+  }
+  demandMult(lane) {
+    const cfg = this.cfg;
+    if (!cfg.profileMode || !this.profile) return cfg.demand;
+    const t = cfg.timeOfDay;
+    if (lane.group === "NB") return this.profileValue(this.profile.nbVeh, t) / BASE_NB;
+    if (lane.group === "SB") return this.profileValue(this.profile.sbVeh, t) / BASE_SB;
+    // cross streets: no per-street counts — reuse the corridor's time-of-day shape,
+    // scaled so its busiest moment matches the slider's 1.0x levels
+    const comb = this.profileValue(this.profile.nbVeh, t) + this.profileValue(this.profile.sbVeh, t);
+    return comb / this.profilePeakComb;
+  }
+  measuredBridgeMph(dir) {
+    if (!this.profile) return null;
+    const arr = dir === "NB" ? this.profile.nbSpeedMph : this.profile.sbSpeedMph;
+    return this.profileValue(arr, this.cfg.timeOfDay);
+  }
+  sampleBridgeSpeed() { // rolling window: radar-style mean speed at the bridge
+    if (!this.bridgeBuf) this.bridgeBuf = { NB: [], SB: [] };
+    const r = this.geo.intersections.find(i => i.key === "riverside");
+    const c = this.geo.intersections.find(i => i.key === "cesar");
+    for (const dir of ["NB", "SB"]) {
+      let s0 = r.sLamar + 60, s1 = c.sLamar - 40;
+      if (dir === "SB") { const L = this.lamarPath.len; [s0, s1] = [L - s1, L - s0]; }
+      let sum = 0, n = 0;
+      for (const l of this.lamarLanes[dir]) {
+        for (const car of l.cars) if (car.s >= s0 && car.s <= s1) { sum += car.v; n++; }
+      }
+      const buf = this.bridgeBuf[dir];
+      if (n > 0) buf.push(sum / n);
+      if (buf.length > 240) buf.shift(); // ~2 min at 0.5 s sampling
+    }
+  }
+  simBridgeMph(dir) {
+    const buf = this.bridgeBuf && this.bridgeBuf[dir];
+    if (!buf || buf.length < 6) return null;
+    return (buf.reduce((s, v) => s + v, 0) / buf.length) * 2.23694; // m/s -> mph
+  }
+
   /* ---------- one physics step ---------- */
   step(dt) {
     const t = this.t;
+    if (this.cfg.profileMode) this.cfg.timeOfDay = (this.cfg.timeOfDay + dt / 60) % 1440;
+    if ((this.bridgeClock = (this.bridgeClock || 0) + dt) >= 0.5) {
+      this.bridgeClock = 0;
+      this.sampleBridgeSpeed();
+    }
     for (const lane of this.lanes) {
       const cars = lane.cars;
       // spawn
-      lane.spawnAcc += lane.spawnRate * this.cfg.demand * dt;
+      lane.spawnAcc += lane.spawnRate * this.demandMult(lane) * dt;
       if (lane.spawnAcc >= 1) {
         lane.spawnAcc -= 1;
         lane.outside++;
@@ -456,6 +517,7 @@ class Sim {
   reset() {
     for (const l of this.lanes) { l.cars = []; l.spawnAcc = 0; l.outside = 0; }
     this.completions = []; this.crossCount = [];
+    this.bridgeBuf = null;
     this.t = 0;
   }
 }
