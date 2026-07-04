@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lamar &amp; the Lights — a driving experiment on real Austin streets</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="topbar">
+  <div id="titleblock">
+    <h1>Lamar &amp; the Lights</h1>
+    <p>Real Austin streets — Barton Springs Rd to 15th St. Same road, same cars. Change only <em>how people drive</em> and <em>how the lights are timed</em>.</p>
+  </div>
+  <div id="presets">
+    <button id="presetToday" class="preset active" title="Typical behavior: slow reaction to green, late braking, loose gaps, uncoordinated signals">Drivers today</button>
+    <button id="presetTrained" class="preset" title="Everyone starts together, coasts instead of braking, keeps a tight-but-safe cushion">Trained drivers</button>
+    <button id="presetCity" class="preset" title="Trained drivers AND signals retimed into a green wave up Lamar">Trained + green wave</button>
+  </div>
+  <div id="simctl">
+    <button id="pause" title="Pause/play">⏸</button>
+    <div id="speeds">
+      <button data-speed="1">1×</button><button data-speed="2" class="active">2×</button><button data-speed="4">4×</button><button data-speed="8">8×</button>
+    </div>
+    <button id="reset" title="Clear all cars and restart">↺</button>
+    <span id="clock">0:00</span>
+  </div>
+</header>
+
+<main>
+  <div id="mapwrap">
+    <div id="maparea">
+      <canvas id="map"></canvas>
+      <div id="views">
+        <button data-view="full" class="active">Full corridor</button>
+        <button data-view="downtown">Downtown lights</button>
+        <button data-view="fifth">5th &amp; Lamar</button>
+      </div>
+      <div id="maphint">scroll to zoom · drag to pan</div>
+    </div>
+    <div id="tswrap">
+      <div id="tstitle">Time–space diagram — northbound Lamar (each dot is a car; red rows are red lights; diagonal streaks = smooth flow) <button id="tstoggle">hide</button></div>
+      <canvas id="tsd"></canvas>
+    </div>
+  </div>
+
+  <aside id="panel">
+    <section id="scoreboard">
+      <div class="scorehead">
+        <h2>Northbound Lamar</h2>
+        <button id="pin" title="Pin the current numbers as a baseline to compare against">📌 pin as baseline</button>
+      </div>
+      <div class="bignums">
+        <div class="metric"><span class="val" id="mThru">–</span><span class="lbl">cars / hour</span><span class="base" id="bThru"></span></div>
+        <div class="metric"><span class="val" id="mTime">–</span><span class="lbl">avg trip <span id="ffnote"></span></span><span class="base" id="bTime"></span></div>
+        <div class="metric"><span class="val" id="mStops">–</span><span class="lbl">stops / car</span><span class="base" id="bStops"></span></div>
+      </div>
+      <div class="subnums">
+        <span>Southbound: <b id="mThruS">–</b> cars/h · <b id="mTimeS">–</b> · <b id="mStopsS">–</b> stops</span>
+        <span>Cross streets: <b id="mThruX">–</b> cars/h</span>
+        <span id="spill" class="warn"></span>
+        <span class="dim"><span id="mCars">0</span> cars on the map</span>
+      </div>
+    </section>
+
+    <section>
+      <h3>How people drive</h3>
+      <div class="slider"><label>Reaction when traffic moves <b id="vReact"></b></label>
+        <input type="range" id="sReact" min="0.2" max="2.5" step="0.05">
+        <p>Seconds before a stopped driver follows the car ahead (or the green). This is why a queue “unzips” one car at a time.</p></div>
+      <div class="slider"><label>Following cushion <b id="vGap"></b></label>
+        <input type="range" id="sGap" min="0.7" max="2.5" step="0.05">
+        <p>Time gap kept behind the car ahead while moving.</p></div>
+      <div class="slider"><label>Get-up-and-go <b id="vAccel"></b></label>
+        <input type="range" id="sAccel" min="0.8" max="3" step="0.05">
+        <p>How briskly people accelerate back to speed.</p></div>
+      <div class="slider"><label>Looking ahead <b id="vAntic"></b></label>
+        <input type="range" id="sAntic" min="0" max="1" step="0.01">
+        <p>Low: stare at the bumper ahead, brake late and hard. High: read the road far ahead, ease off early, arrive at lights still rolling.</p></div>
+      <div class="slider"><label>Share of trained drivers <b id="vMix"></b></label>
+        <input type="range" id="sMix" min="0" max="1" step="0.01">
+        <p>Overrides that share of cars with a trained driver (0.3&nbsp;s reaction, 1.0&nbsp;s cushion, coasts instead of braking). Watch what even 20% does.</p></div>
+    </section>
+
+    <section>
+      <h3>The lights</h3>
+      <div class="slider"><label>Signal cycle length <b id="vCycle"></b></label>
+        <input type="range" id="sCycle" min="40" max="150" step="1">
+        <p>Full red-to-red cycle at every intersection.</p></div>
+      <div class="slider"><label>Lamar’s share of the green <b id="vSplit"></b></label>
+        <input type="range" id="sSplit" min="0.3" max="0.85" step="0.01">
+        <p>Big cross streets get the rest. Minor crossings (Toomey, Riverside, 3rd, 9th, 10th) take a short fixed phase — they stop Lamar even when empty.</p></div>
+      <div class="slider"><label><input type="checkbox" id="sWave"> Green wave up Lamar <b id="vWave"></b></label>
+        <input type="range" id="sWaveSpd" min="20" max="40" step="1">
+        <p>Offsets each light so a platoon leaving one green arrives at the next one. Timed northbound at the speed above — note what it does to southbound.</p></div>
+    </section>
+
+    <section>
+      <h3>How many cars</h3>
+      <div class="slider"><label>Demand <b id="vDemand"></b></label>
+        <input type="range" id="sDemand" min="0.2" max="2" step="0.05">
+        <p>1.0× ≈ weekday rush hour on this stretch.</p></div>
+    </section>
+
+    <section id="legend">
+      <h3>Reading the map</h3>
+      <ul>
+        <li><span class="swatch" style="background:linear-gradient(90deg,#c0392b,#e2a13c,#3d9970,#2e7fbf)"></span> car color = speed (red stopped → blue at the limit)</li>
+        <li><span class="dotdemo" style="background:#e74c3c;box-shadow:0 0 6px 2px rgba(231,60,60,.8)"></span> red halo = foot on the brake</li>
+        <li><span class="dotdemo" style="background:#777;outline:2px solid #e2a13c"></span> amber ring = green light / gap open, driver hasn’t reacted yet</li>
+        <li>5th St runs one-way east, 6th St one-way west — Austin’s downtown couplet.</li>
+      </ul>
+      <p class="foot">v0.1 — through traffic only (no turns yet). Signal timings are simplified two-phase, not the city’s actual plans. Street &amp; water geometry © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors.</p>
+    </section>
+  </aside>
+</main>
+
+<script src="js/geometry.js"></script>
+<script src="js/model.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
