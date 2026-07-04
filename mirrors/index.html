@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Mirrors — blind spots are a settings problem</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  #mirwrap { flex: 1; position: relative; min-height: 0; }
+  #mir { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #covwrap { margin: 0 10px 8px; background: rgba(255,253,247,.95); border: 1px solid var(--line);
+    border-radius: 10px; padding: 6px 8px 8px; }
+  #covtitle { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+  #cov { width: 100%; height: 56px; display: block; border-radius: 6px; }
+  .zonechip { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 4px; }
+</style>
+</head>
+<body>
+<header id="topbar">
+  <div id="titleblock">
+    <h1>The Mirrors</h1>
+    <p>The blind spot isn't a fact of physics — it's a <em>setting</em>. If a mirror shows your own car, it's wasting glass on something that never moves. Aim them wide and a passing car is <em>always</em> in something.</p>
+  </div>
+  <div id="presets">
+    <button id="pSchool" class="preset active">Driving-school setting</button>
+    <button id="pWide" class="preset">Wide (BGE) setting</button>
+  </div>
+  <div id="simctl">
+    <button id="pause" title="Pause/play">⏸</button>
+    <span id="clock" style="min-width:0"></span>
+  </div>
+</header>
+
+<main>
+  <div id="mapwrap">
+    <div id="mirwrap"><canvas id="mir"></canvas></div>
+    <div id="covwrap">
+      <div id="covtitle">Coverage of the passing car, by position alongside you —
+        <span class="zonechip" style="background:#2e7fbf"></span>rear-view
+        <span class="zonechip" style="background:#7c5cb8"></span>side mirror
+        <span class="zonechip" style="background:#3d9970"></span>your own eyes
+        <span class="zonechip" style="background:#c0392b"></span><b>invisible</b></div>
+      <canvas id="cov"></canvas>
+    </div>
+  </div>
+
+  <aside id="panel">
+    <section id="scoreboard">
+      <div class="scorehead"><h2>The blind zone</h2></div>
+      <div class="bignums">
+        <div class="metric"><span class="val" id="mBlindL">–</span><span class="lbl">left blind zone</span><span class="base" id="bL"></span></div>
+        <div class="metric"><span class="val" id="mBlindR">–</span><span class="lbl">right blind zone</span><span class="base" id="bR"></span></div>
+        <div class="metric"><span class="val" id="mSelf">–</span><span class="lbl">own car in mirror?</span><span class="base"></span></div>
+      </div>
+      <div class="subnums">
+        <span id="verdict"></span>
+        <span class="dim">Shoulder checks are deliberately excluded — the point is what you know <em>without</em> turning your head. (Still glance for bikes.)</span>
+      </div>
+    </section>
+
+    <section>
+      <h3>Mirror aim</h3>
+      <div class="slider"><label>Left mirror, degrees outward <b id="vLeft"></b></label>
+        <input type="range" id="sLeft" min="0" max="40" step="0.5" value="3">
+        <p>0° = pointed straight down your own flank (you see your car). The driving-school "just see the edge of your car" lands around 0–6°.</p></div>
+      <div class="slider"><label>Right mirror, degrees outward <b id="vRight"></b></label>
+        <input type="range" id="sRight" min="0" max="40" step="0.5" value="3">
+        <p>The BGE method: lean your head to the window, set the mirror to <em>just</em> lose your car, sit back up — you land near 25–30°.</p></div>
+      <div class="slider"><label>Overtaking speed difference <b id="vPass"></b></label>
+        <input type="range" id="sPass" min="2" max="12" step="0.5" value="5">
+        <p>How fast the passing car slides through your zones. Slow passes camp in the blind zone the longest.</p></div>
+    </section>
+
+    <section id="legend">
+      <h3>What to watch</h3>
+      <ul>
+        <li>Driving-school setting: the passing car turns <b style="color:#c0392b">red</b> beside your rear quarter — it's in <em>nothing</em>. That's where lane-change crashes live.</li>
+        <li>Wide setting: rear-view hands off to the side mirror, which hands off to your own eyes. The coverage bar below the road becomes an unbroken rainbow.</li>
+        <li>The test in your real car: can you see your own car in the side mirror? If yes, you own a blind spot you don't need.</li>
+      </ul>
+      <p class="foot">Pure geometry — mirror fields of view ~16° (flat glass), rear-view ~30°, forward vision ±80°. The wide setting is the SAE-published BGE method (Platzer 1995), long championed by Car&nbsp;and&nbsp;Driver and Click&nbsp;&amp;&nbsp;Clack. See <a href="../docs/evidence.md">evidence</a>.</p>
+    </section>
+  </aside>
+</main>
+
+<script src="../js/lab.js"></script>
+<script>LAB.nav("04");</script>
+<script src="mirrors.js"></script>
+</body>
+</html>
