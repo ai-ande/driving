@@ -4,10 +4,12 @@
    270 = straight back.
 
    The view is ONE planar pinhole camera at the driver's eye (left seat), with
-   a turnable head: the cabin — pillars, roof, dash, doors, seats — is real 3D
-   geometry drawn over the world, and the windows are simply the gaps. Mirrors
-   are billboards anchored to the cabin whose glass is rendered by its own
-   fixed backward camera (demo 04's cones), horizontally flipped like glass. */
+   a turnable head (±60°, like a neck): the cabin — pillars, roof, dash, doors,
+   seats — is real 3D geometry drawn over the world, and the windows are the
+   gaps. Mirrors are billboards anchored to the cabin whose glass is rendered
+   by its own fixed backward camera (demo 04's cones), horizontally flipped
+   like glass. Traffic is a stream of overtakers on random sides; some start
+   in your lane and merge out before passing. */
 "use strict";
 
 const LANE_W = 3.4;
@@ -19,9 +21,10 @@ const MIR_R    = { x: 1.0,   y: 0.75, z: 0.95 };
 
 const FOV = { forwardHalf: 70, rearHalf: 15, sideHalf: 8, range: 70 };
 const OWN_V = 29;                       // your speed (~65 mph) — scenery stream only
-const HFOV = 104;                       // head-still view width, degrees
+const HFOV = 118;                       // head-still view width: both mirrors visible
+const HEAD_MAX = 60;                    // we aren't owls
 
-const cfg = { left: 3, right: 3, pass: 5 };
+const cfg = { left: 3, right: 3, pass: 5, share: 50 };
 
 const deg = Math.PI / 180;
 function angDiff(a, b) {
@@ -79,18 +82,50 @@ function selfInMirror() {
   return pts.some(([x, y]) => pointInZone(mL, x, y)) || pts.some(([x, y]) => pointInZone(mR, x, y));
 }
 
-/* ---------- scene state ---------- */
-let odo = 0;                 // your odometer — streams dashes, posts, trees
+/* ---------- traffic: a stream of overtakers ---------- */
+const rng = LAB.mulberry32(20260705);
+const PALETTE = ["#8d939b", "#a89a84", "#98a3ad", "#7f8a94", "#9b8f9e", "#87909a"];
+let cars = [];              // every car is faster than you and passes
+let spawnIn = 1.5;          // s until next spawn
+let odo = 0;
 let paused = false;
-let invisT = 0, lastInvis = null;   // invisible-seconds accounting per pass
+let lastInvis = null;       // invisible seconds of the last completed pass
 
-const passer = { x: -LANE_W, y: -40, color: "#c0392b" };
-const ambient = [
-  { x: 0, y: 32, color: "#8d939b" },        // lead, your lane (gentle bob)
-  { x: LANE_W, y: 14, color: "#a89a84" },   // right lane, ahead
-  { x: 0, y: -26, color: "#98a3ad" },       // follower, your lane
-  { x: LANE_W, y: -45, color: "#7f8a94" },  // right lane, far back
-];
+function mkCar(o = {}) {
+  return {
+    side: o.side ?? (rng() < cfg.share / 100 ? -1 : 1),   // -1 = passes on your left
+    mid: o.mid ?? (rng() < 0.4),                          // starts in YOUR lane, merges out
+    prog: o.mid ? 0 : 1,                                  // lane-change progress
+    y: o.y ?? -46,
+    jit: o.jit ?? (0.75 + 0.5 * rng()),
+    color: PALETTE[Math.floor(rng() * PALETTE.length)],
+    col: "#8d939b",                                        // zone-painted each frame
+    invis: 0,
+    done: false,
+    seen: new Set(),
+  };
+}
+const ease = p => p * p * (3 - 2 * p);
+const carX = c => c.side * LANE_W * ease(Math.min(1, c.prog));
+
+function advance(dt) {
+  odo += OWN_V * dt;
+  spawnIn -= dt;
+  if (spawnIn <= 0) {
+    if (cars.length < 3 && !cars.some(c => c.y < -34)) {
+      cars.push(mkCar());
+      spawnIn = 4 + 8 * rng();
+    } else spawnIn = 1;
+  }
+  for (const c of cars) {
+    c.y += Math.max(0.8, cfg.pass) * c.jit * dt;
+    if (c.mid && c.prog === 0 && c.y > -20) c.prog = 1e-6;   // signal on, move over
+    if (c.prog > 0 && c.prog < 1) c.prog = Math.min(1, c.prog + dt / 2);
+    if (c.y > -30 && c.y < 8 && coverage(carX(c), c.y).size === 0) c.invis += dt;
+    if (!c.done && c.y >= 8) { c.done = true; lastInvis = c.invis; }
+  }
+  cars = cars.filter(c => c.y < 44);
+}
 
 /* head turn: 0 = facing forward, positive = looking left (degrees) */
 let head = 0, headDrag = null, keyLook = 0, hookLook = null;
@@ -286,14 +321,16 @@ function renderWorld(ctx, cam, bb /*{x0,y0,x1,y1}*/, opts = {}) {
   }
 
   // vehicles, far to near
-  const list = [passer, ...ambient];
+  const list = cars.map(c => ({ x: carX(c), y: c.y, color: c.col }));
   if (opts.ownCar) list.push({ x: 0, y: 0, color: "#23303a" });
   list.map(v => ({ v, d: (v.x - cam.px) ** 2 + (v.y - cam.py) ** 2 }))
     .sort((a, b) => b.d - a.d)
     .forEach(({ v }) => drawVehicle(ctx, cam, v));
 }
 
-/* ---------- the cabin, as geometry in car space (cosmetic — zones don't see it) ---------- */
+/* ---------- the cabin, as geometry in car space (cosmetic — zones don't see it) ----------
+   The B-pillar sits at your shoulder (y ≈ 0.5), so a glance shows: your window,
+   pillar, then the rear door's separate window — not one endless pane. */
 const CABIN = [
   // roof + windshield header
   { c: "#161c22", q: [[-0.72, 1.02, 1.42], [0.72, 1.02, 1.42], [0.80, -1.35, 1.40], [-0.80, -1.35, 1.40]] },
@@ -301,24 +338,26 @@ const CABIN = [
   // roof side rails, down to the window tops
   { c: "#1b222a", q: [[-0.80, 1.02, 1.40], [-0.80, -1.35, 1.40], [-0.86, -1.35, 1.33], [-0.86, 1.02, 1.33]] },
   { c: "#1b222a", q: [[0.80, 1.02, 1.40], [0.80, -1.35, 1.40], [0.86, -1.35, 1.33], [0.86, 1.02, 1.33]] },
-  // A-pillars
+  // A-pillars (the right one is slimmer so its window sliver survives at rest)
   { c: "#232b33", q: [[-0.84, 1.62, 0.98], [-0.66, 1.18, 1.36], [-0.72, 1.02, 1.40], [-0.92, 1.35, 0.93]] },
-  { c: "#232b33", q: [[0.84, 1.62, 0.98], [0.66, 1.18, 1.36], [0.72, 1.02, 1.40], [0.92, 1.35, 0.93]] },
+  { c: "#232b33", q: [[0.84, 1.62, 0.98], [0.66, 1.18, 1.36], [0.72, 1.02, 1.40], [0.92, 1.55, 0.95]] },
   // dash: top surface + face toward you
   { c: "#2a323b", q: [[-0.90, 1.15, 0.96], [0.90, 1.15, 0.96], [0.84, 1.60, 0.99], [-0.84, 1.60, 0.99]] },
   { c: "#20272e", q: [[-0.90, 1.15, 0.58], [0.90, 1.15, 0.58], [0.90, 1.15, 0.96], [-0.90, 1.15, 0.96]] },
-  // front doors below the beltline
-  { c: "#262e36", q: [[-0.90, 1.40, 0.95], [-0.88, -1.10, 0.95], [-0.88, -1.10, 0.22], [-0.90, 1.40, 0.22]] },
-  { c: "#262e36", q: [[0.90, 1.40, 0.95], [0.88, -1.10, 0.95], [0.88, -1.10, 0.22], [0.90, 1.40, 0.22]] },
-  // B-pillars
-  { c: "#1d242b", q: [[-0.87, -0.92, 0.90], [-0.87, -1.08, 0.90], [-0.85, -1.08, 1.36], [-0.85, -0.92, 1.36]] },
-  { c: "#1d242b", q: [[0.87, -0.92, 0.90], [0.87, -1.08, 0.90], [0.85, -1.08, 1.36], [0.85, -0.92, 1.36]] },
-  // rear doors below glass, C-pillars, rear seatback
-  { c: "#242c34", q: [[-0.88, -1.08, 0.95], [-0.86, -2.10, 0.95], [-0.86, -2.10, 0.28], [-0.88, -1.08, 0.28]] },
-  { c: "#242c34", q: [[0.88, -1.08, 0.95], [0.86, -2.10, 0.95], [0.86, -2.10, 0.28], [0.88, -1.08, 0.28]] },
-  { c: "#1d242b", q: [[-0.86, -1.95, 0.92], [-0.84, -2.18, 0.92], [-0.84, -2.18, 1.36], [-0.86, -1.95, 1.36]] },
-  { c: "#1d242b", q: [[0.86, -1.95, 0.92], [0.84, -2.18, 0.92], [0.84, -2.18, 1.36], [0.86, -1.95, 1.36]] },
+  // front doors below the beltline (glass above, up to the B-pillar at your shoulder)
+  { c: "#262e36", q: [[-0.90, 1.40, 0.95], [-0.88, 0.43, 0.95], [-0.88, 0.43, 0.22], [-0.90, 1.40, 0.22]] },
+  { c: "#262e36", q: [[0.90, 1.40, 0.95], [0.88, 0.43, 0.95], [0.88, 0.43, 0.22], [0.90, 1.40, 0.22]] },
+  // B-pillars, right behind your shoulder
+  { c: "#1d242b", q: [[-0.88, 0.55, 0.90], [-0.88, 0.43, 0.90], [-0.85, 0.43, 1.36], [-0.85, 0.55, 1.36]] },
+  { c: "#1d242b", q: [[0.88, 0.55, 0.90], [0.88, 0.43, 0.90], [0.85, 0.43, 1.36], [0.85, 0.55, 1.36]] },
+  // rear doors below their glass, C-pillars, rear seatback + headrests
+  { c: "#242c34", q: [[-0.88, 0.43, 0.95], [-0.86, -2.10, 0.95], [-0.86, -2.10, 0.28], [-0.88, 0.43, 0.28]] },
+  { c: "#242c34", q: [[0.88, 0.43, 0.95], [0.86, -2.10, 0.95], [0.86, -2.10, 0.28], [0.88, 0.43, 0.28]] },
+  { c: "#1d242b", q: [[-0.86, -1.30, 0.92], [-0.84, -1.58, 0.92], [-0.84, -1.58, 1.36], [-0.86, -1.30, 1.36]] },
+  { c: "#1d242b", q: [[0.86, -1.30, 0.92], [0.84, -1.58, 0.92], [0.84, -1.58, 1.36], [0.86, -1.30, 1.36]] },
   { c: "#2b333c", q: [[-0.82, -1.30, 0.35], [0.82, -1.30, 0.35], [0.82, -1.30, 1.04], [-0.82, -1.30, 1.04]] },
+  { c: "#242c34", q: [[-0.55, -1.28, 1.04], [-0.25, -1.28, 1.04], [-0.25, -1.28, 1.26], [-0.55, -1.28, 1.26]] },
+  { c: "#242c34", q: [[0.25, -1.28, 1.04], [0.55, -1.28, 1.04], [0.55, -1.28, 1.26], [0.25, -1.28, 1.26]] },
   // passenger seat + headrest (you look past it out the right window)
   { c: "#2b333c", q: [[0.12, -0.30, 0.30], [0.62, -0.30, 0.30], [0.62, -0.30, 1.06], [0.12, -0.30, 1.06]] },
   { c: "#242c34", q: [[0.22, -0.28, 1.10], [0.52, -0.28, 1.10], [0.52, -0.28, 1.30], [0.22, -0.28, 1.30]] },
@@ -331,7 +370,7 @@ const GAUGES = [{ p: [-0.475, 1.17, 0.875], frac: 0.29 }, { p: [-0.235, 1.17, 0.
 const WHEEL = { C: [-0.35, 1.0, 0.81], R: 0.19, v: [0, -Math.sin(25 * deg), Math.cos(25 * deg)] };
 const RV_A = [-0.02, 1.25, 1.32];       // where the drawn mirrors hang (cabin art;
 const ML_A = [-1.03, 1.30, 1.01];       //  the glass CONTENT still comes from demo 04's
-const MR_A = [1.03, 1.30, 1.01];        //  cone origins, unchanged)
+const MR_A = [1.03, 1.52, 1.01];        //  cone origins, unchanged)
 
 function drawCabin(ctx, cam) {
   CABIN.map(o => {
@@ -370,7 +409,7 @@ function drawCabin(ctx, cam) {
     ctx.stroke();
   }
 
-  // the dash screen: demo 04's top-down view, affine-mapped onto the console
+  // the dash screen: demo 04's top-down view, affine-mapped onto the tablet
   const sp = SCREEN_Q.map(p => camPt(cam, ...p));
   if (sp.every(p => p[2] > NEAR)) {
     const s = sp.map(p => [SX(cam, p), SY(cam, p)]);
@@ -530,9 +569,8 @@ function drawMinimap(ctx, r) {
     ctx.roundRect(mx(v.y - CAR.len / 2), my(v.x - CAR.wid / 2), CAR.len * k, CAR.wid * k, 2);
     ctx.fill();
   };
-  for (const v of ambient) carRect(v, "#5c666f");
   carRect({ x: 0, y: 0 }, "#e8e4d8");
-  carRect(passer, passer.color);
+  for (const c of cars) carRect({ x: carX(c), y: c.y }, c.col);
 
   ctx.fillStyle = "#5f6b76";
   ctx.font = "600 7px -apple-system, sans-serif";
@@ -542,14 +580,24 @@ function drawMinimap(ctx, r) {
 }
 
 /* ---------- status pill (HUD) ---------- */
-function statusOf(seen) {
-  if (seen.has("mirL") || seen.has("mirR")) return { txt: "in your side mirror", col: "#7c5cb8" };
+function focusCar() {
+  let best = null;
+  for (const c of cars) {
+    if (c.y < -34 || c.y > 10) continue;
+    if (!best || Math.abs(c.y) < Math.abs(best.y)) best = c;
+  }
+  return best;
+}
+function statusOf(c) {
+  const sideTxt = c.side < 0 ? "left" : "right";
+  const seen = c.seen;
+  if (seen.has("mirL") || seen.has("mirR")) return { txt: `in your ${sideTxt} side mirror`, col: "#7c5cb8" };
   if (seen.has("rear")) return { txt: "in your rear-view mirror", col: "#2e7fbf" };
   if (seen.size > 0) {
-    return passer.y > 6 ? { txt: "ahead — your own eyes", col: "#3d9970" }
-                        : { txt: "beside you — your own eyes", col: "#3d9970" };
+    return c.y > 6 ? { txt: "ahead — your own eyes", col: "#3d9970" }
+                   : { txt: `beside you (${sideTxt}) — your own eyes`, col: "#3d9970" };
   }
-  return { txt: "INVISIBLE — in none of your glass", col: "#c0392b" };
+  return { txt: `INVISIBLE — off your ${sideTxt} rear quarter`, col: "#c0392b" };
 }
 function drawStatus(ctx, st, t) {
   ctx.font = "600 12px -apple-system, sans-serif";
@@ -603,22 +651,23 @@ function render(t) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const W = r.width, H = r.height;
   const focal = (W / 2) / Math.tan(HFOV / 2 * deg);
-  // you lean into a glance: the eye slides a little toward the window you're
-  // checking (cosmetic — the zone model's eye point never moves)
-  const eye = { x: EYE.x - 0.20 * head / 115, y: EYE.y, z: EYE.z };
+  // you lean a little into a glance (cosmetic — the zone model's eye never moves)
+  const eye = { x: EYE.x - 0.10 * head / HEAD_MAX, y: EYE.y, z: EYE.z };
   const cam = makeCam(eye, 90 + head, 1, focal, W / 2, 0.45 * H);
   L = { W, H };
 
-  const seen = coverage(passer.x, passer.y);
-  passer.color = seen.has("mirL") || seen.has("mirR") ? "#7c5cb8"
-    : seen.has("rear") ? "#2e7fbf"
-    : seen.size > 0 ? "#3d9970" : "#c0392b";
+  for (const c of cars) {
+    c.seen = coverage(carX(c), c.y);
+    c.col = c.seen.has("mirL") || c.seen.has("mirR") ? "#7c5cb8"
+      : c.seen.has("rear") ? "#2e7fbf"
+      : c.seen.size > 0 ? "#3d9970" : "#c0392b";
+  }
 
   renderWorld(ctx, cam, { x0: 0, y0: 0, x1: W, y1: H }, {});
   drawCabin(ctx, cam);
 
   // mirrors: bezels ride the cabin; glass stays demo 04's cones
-  L.rv = mirrorRect(cam, RV_A, 0.30, 0.32, 120, 0.24 * W, W, H);
+  L.rv = mirrorRect(cam, RV_A, 0.30, 0.32, 130, 0.24 * W, W, H);
   if (L.rv) {
     const s0 = camPt(cam, RV_A[0], RV_A[1], 1.34), s1 = camPt(cam, RV_A[0] - 0.02, RV_A[1] - 0.06, 1.40);
     if (s0[2] > NEAR && s1[2] > NEAR) {
@@ -631,9 +680,9 @@ function render(t) {
     }
     drawMirror(ctx, L.rv, REARVIEW, 270, 2 * FOV.rearHalf, { headrests: true });
   }
-  L.mLr = mirrorRect(cam, ML_A, 0.185, 0.64, 76, 0.15 * W, W, H);
+  L.mLr = mirrorRect(cam, ML_A, 0.20, 0.64, 96, 0.15 * W, W, H);
   if (L.mLr) drawMirror(ctx, L.mLr, MIR_L, 270 - cfg.left, 2 * FOV.sideHalf, { ownCar: true });
-  L.mRr = mirrorRect(cam, MR_A, 0.185, 0.64, 76, 0.15 * W, W, H);
+  L.mRr = mirrorRect(cam, MR_A, 0.20, 0.64, 96, 0.15 * W, W, H);
   if (L.mRr) drawMirror(ctx, L.mRr, MIR_R, 270 + cfg.right, 2 * FOV.sideHalf, { ownCar: true });
 
   // cabin vignette
@@ -643,7 +692,8 @@ function render(t) {
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
 
-  drawStatus(ctx, statusOf(seen), t);
+  const f = focusCar();
+  if (f) drawStatus(ctx, statusOf(f), t);
 }
 
 /* ---------- DOM metrics ---------- */
@@ -656,25 +706,32 @@ function updateDom() {
   document.getElementById("mSelf").textContent = selfInMirror() ? "yes" : "no";
   const verdict = document.getElementById("verdict");
   if (Lb < 0.4 && Rb < 0.4) {
-    verdict.innerHTML = "<b style='color:#3d9970'>Continuous hand-off: rear-view → side mirror → your own eyes. Nothing can hide.</b>";
+    verdict.innerHTML = "<b style='color:#3d9970'>Continuous hand-off: rear-view → side mirror → your own eyes. Nothing can hide, on either side.</b>";
   } else {
     verdict.innerHTML = "<b style='color:#c0392b'>A car can sit beside your rear quarter, in nothing, for seconds at a time.</b>";
   }
 }
 
-function updateLive(seen) {
-  const st = statusOf(seen);
+function updateLive() {
+  const f = focusCar();
   const el = document.getElementById("mWhere");
-  el.textContent = seen.has("mirL") || seen.has("mirR") ? "side mirror"
-    : seen.has("rear") ? "rear-view"
-    : seen.size > 0 ? "your own eyes" : "NOWHERE";
-  el.style.color = st.col;
-  const d = passer.y;
-  document.getElementById("bWhere").textContent =
-    d < -1 ? Math.round(-d) + " m back" : d > 5 ? Math.round(d) + " m ahead" : "beside you";
-  const iv = lastInvis ?? invisT;
-  document.getElementById("mInvis").textContent = iv.toFixed(1) + " s";
-  document.getElementById("bInvis").textContent = lastInvis === null ? "measuring…" : "at this speed difference";
+  if (!f) {
+    el.textContent = "–";
+    el.style.color = "";
+    document.getElementById("bWhere").textContent = "waiting for traffic";
+  } else {
+    const st = statusOf(f);
+    el.textContent = f.seen.has("mirL") || f.seen.has("mirR") ? "side mirror"
+      : f.seen.has("rear") ? "rear-view"
+      : f.seen.size > 0 ? "your own eyes" : "NOWHERE";
+    el.style.color = st.col;
+    const d = f.y, sideTxt = f.side < 0 ? "left" : "right";
+    document.getElementById("bWhere").textContent =
+      d < -1 ? `${Math.round(-d)} m back (${sideTxt})` : d > 5 ? `${Math.round(d)} m ahead` : `beside you (${sideTxt})`;
+  }
+  const iv = lastInvis ?? (f ? f.invis : null);
+  document.getElementById("mInvis").textContent = iv === null ? "–" : iv.toFixed(1) + " s";
+  document.getElementById("bInvis").textContent = lastInvis === null ? "measuring…" : "last completed pass";
 }
 
 /* ---------- UI ---------- */
@@ -682,7 +739,8 @@ LAB.bindSliders({
   left: { id: "sLeft", lbl: "vLeft", fmt: v => v.toFixed(1) + "°" },
   right: { id: "sRight", lbl: "vRight", fmt: v => v.toFixed(1) + "°" },
   pass: { id: "sPass", lbl: "vPass", fmt: v => Math.round(v * 2.237) + " mph faster" },
-}, cfg, () => { setPreset(null); lastInvis = null; invisT = 0; updateDom(); });
+  share: { id: "sShare", lbl: "vShare", fmt: v => Math.round(v) + "% left" },
+}, cfg, () => { setPreset(null); lastInvis = null; updateDom(); });
 
 function setPreset(id) {
   document.querySelectorAll(".preset").forEach(b => b.classList.remove("active"));
@@ -694,11 +752,12 @@ function setAngles(l, rr) {
   document.getElementById("sRight").value = rr;
   document.getElementById("vLeft").textContent = l.toFixed(1) + "°";
   document.getElementById("vRight").textContent = rr.toFixed(1) + "°";
-  lastInvis = null; invisT = 0;
+  lastInvis = null;
+  for (const c of cars) c.invis = 0;
   updateDom();
 }
 document.getElementById("pSchool").addEventListener("click", () => { setAngles(3, 3); setPreset("pSchool"); });
-document.getElementById("pWide").addEventListener("click", () => { setAngles(28, 28); setPreset("pWide"); });
+document.getElementById("pWide").addEventListener("click", () => { setAngles(19, 19); setPreset("pWide"); });
 document.getElementById("pause").addEventListener("click", () => {
   paused = !paused;
   document.getElementById("pause").textContent = paused ? "▶" : "⏸";
@@ -727,12 +786,12 @@ cv.addEventListener("pointermove", e => {
     document.getElementById("s" + cap).value = cfg[mirDrag.side];
     document.getElementById("v" + cap).textContent = cfg[mirDrag.side].toFixed(1) + "°";
     setPreset(null);
-    lastInvis = null; invisT = 0;
+    lastInvis = null;
     updateDom();
     return;
   }
   if (headDrag) {
-    headDrag.yaw = Math.max(-115, Math.min(115, headDrag.yaw0 + (e.clientX - headDrag.x0) * 0.35));
+    headDrag.yaw = Math.max(-HEAD_MAX, Math.min(HEAD_MAX, headDrag.yaw0 + (e.clientX - headDrag.x0) * 0.35));
     return;
   }
   cv.style.cursor = (inRect(L && L.mLr, x, y) || inRect(L && L.mRr, x, y)) ? "ew-resize" : "grab";
@@ -742,8 +801,8 @@ cv.addEventListener("pointerup", endDrag);
 cv.addEventListener("pointercancel", endDrag);
 
 window.addEventListener("keydown", e => {
-  if (e.key === "ArrowLeft") { keyLook = 100; e.preventDefault(); }
-  if (e.key === "ArrowRight") { keyLook = -100; e.preventDefault(); }
+  if (e.key === "ArrowLeft") { keyLook = HEAD_MAX; e.preventDefault(); }
+  if (e.key === "ArrowRight") { keyLook = -HEAD_MAX; e.preventDefault(); }
 });
 window.addEventListener("keyup", e => {
   if ((e.key === "ArrowLeft" && keyLook > 0) || (e.key === "ArrowRight" && keyLook < 0)) keyLook = 0;
@@ -755,28 +814,29 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   head += (headGoal() - head) * (1 - Math.exp(-7 * dt));   // glance, then ease back
-  if (!paused) {
-    odo += OWN_V * dt;
-    passer.y += cfg.pass * dt;
-    if (passer.y > 35) { lastInvis = invisT; invisT = 0; passer.y = -40; }
-    ambient[0].y = 32 + 2.2 * Math.sin(odo * 0.05);
-    if (passer.y > -30 && passer.y < 8 && coverage(passer.x, passer.y).size === 0) invisT += dt;
-  }
+  if (!paused) advance(dt);
   render(now / 1000);
   domTick += dt;
-  if (domTick > 0.15) { domTick = 0; updateLive(coverage(passer.x, passer.y)); }
+  if (domTick > 0.15) { domTick = 0; updateLive(); }
   requestAnimationFrame(frame);
 }
 updateDom();
 requestAnimationFrame(frame);
 
-/* console hook for tests and clip scripting: COCKPIT.jump(-4) parks the passer
-   in the school-aim blind zone; COCKPIT.look(90) holds a head turn (null releases) */
+/* console hooks for tests and clip scripting:
+   COCKPIT.jump(-12)          one car parked 12 m back on the left
+   COCKPIT.jump(-12, 1, true) ...on the right, mid-lane-change
+   COCKPIT.look(60)           hold a head turn (null releases)
+   COCKPIT.tick(3)            advance the sim 3 s synchronously (rAF-throttle-proof) */
 window.COCKPIT = {
-  jump: y => { passer.y = y; },
-  look: d => {                     // instant for scripting; spring applies on release
-    hookLook = d === null ? null : Math.max(-115, Math.min(115, d));
+  jump: (y, side = -1, mid = false) => {
+    cars = [mkCar({ y, side, mid, jit: 1 })];
+    if (mid) cars[0].prog = 0;
+  },
+  look: d => {
+    hookLook = d === null ? null : Math.max(-HEAD_MAX, Math.min(HEAD_MAX, d));
     if (hookLook !== null) head = hookLook;
   },
-  state: () => ({ passY: passer.y, odo, head, seen: [...coverage(passer.x, passer.y)] }),
+  tick: s => { for (let t = 0; t < s; t += 1 / 60) advance(1 / 60); },
+  state: () => ({ head, odo, cars: cars.map(c => ({ y: +c.y.toFixed(1), x: +carX(c).toFixed(2), side: c.side, mid: c.mid, prog: +c.prog.toFixed(2), invis: +c.invis.toFixed(2), seen: [...c.seen] })) }),
 };

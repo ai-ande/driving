@@ -120,8 +120,12 @@ camera in the driver's seat with a turnable head — drag the road or hold ←/�
 and the view eases back when you let go — inside a 3D cabin (pillars, roof, dash, doors,
 seats; the windows are the gaps). Mirrors are cabin-anchored billboards whose glass is
 rendered by demo 04's cone cameras, horizontally flipped like real glass: a rear-view and
-two live-aimable side mirrors (drag to aim), a car easing past in the left lane, and the
-dash screen literally running demo 04's top-down view as ground truth. The glance is the
+two live-aimable side mirrors (drag to aim), a stream of overtakers on random sides (bias
+slider; some start in your lane and merge out before passing), and the dash screen
+literally running demo 04's top-down view as ground truth. The wide preset is tuned (19°
+on this page's flat-glass cones) so the canonical BGE relay is visible on the glass
+itself: rear-view middle → rear-view edge overlapping the side mirror's inner edge →
+sweep across the side mirror → window — never in nothing, on either side. The glance is the
 shoulder check made literal — turning your head finds the "invisible" car with your own
 eyes, and the page says out loud that the coverage numbers stay head-still on purpose.
 With school aim you watch the passer leave the side mirror
