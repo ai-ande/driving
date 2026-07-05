@@ -1,8 +1,13 @@
 /* The Cockpit: demo 04's blind-spot geometry, seen from the driver's seat.
    World frame (same as mirrors/): your car at origin facing +y. x right,
    y forward, z up, meters. Angles: degrees CCW from +x — 90 = straight ahead,
-   270 = straight back. Every window and mirror is a planar pinhole camera into
-   one shared 3D scene; mirror cameras render horizontally flipped, like glass. */
+   270 = straight back.
+
+   The view is ONE planar pinhole camera at the driver's eye (left seat), with
+   a turnable head: the cabin — pillars, roof, dash, doors, seats — is real 3D
+   geometry drawn over the world, and the windows are simply the gaps. Mirrors
+   are billboards anchored to the cabin whose glass is rendered by its own
+   fixed backward camera (demo 04's cones), horizontally flipped like glass. */
 "use strict";
 
 const LANE_W = 3.4;
@@ -14,6 +19,7 @@ const MIR_R    = { x: 1.0,   y: 0.75, z: 0.95 };
 
 const FOV = { forwardHalf: 70, rearHalf: 15, sideHalf: 8, range: 70 };
 const OWN_V = 29;                       // your speed (~65 mph) — scenery stream only
+const HFOV = 104;                       // head-still view width, degrees
 
 const cfg = { left: 3, right: 3, pass: 5 };
 
@@ -75,17 +81,24 @@ function selfInMirror() {
 
 /* ---------- scene state ---------- */
 let odo = 0;                 // your odometer — streams dashes, posts, trees
-let passY = -40;             // the overtaker, left lane, relative to you
 let paused = false;
 let invisT = 0, lastInvis = null;   // invisible-seconds accounting per pass
 
-const passer = { x: -LANE_W, y: passY, color: "#c0392b" };
+const passer = { x: -LANE_W, y: -40, color: "#c0392b" };
 const ambient = [
   { x: 0, y: 32, color: "#8d939b" },        // lead, your lane (gentle bob)
   { x: LANE_W, y: 14, color: "#a89a84" },   // right lane, ahead
   { x: 0, y: -26, color: "#98a3ad" },       // follower, your lane
   { x: LANE_W, y: -45, color: "#7f8a94" },  // right lane, far back
 ];
+
+/* head turn: 0 = facing forward, positive = looking left (degrees) */
+let head = 0, headDrag = null, keyLook = 0, hookLook = null;
+function headGoal() {
+  if (headDrag) return headDrag.yaw;
+  if (keyLook) return keyLook;
+  return hookLook ?? 0;
+}
 
 /* ---------- tiny 3D pipeline ---------- */
 const NEAR = 0.18;
@@ -204,7 +217,7 @@ function renderWorld(ctx, cam, bb /*{x0,y0,x1,y1}*/, opts = {}) {
     ctx.fillRect(sx - R, sy - R, 2 * R, 2 * R);
   }
 
-  // distant ridge, a function of world azimuth so panes line up
+  // distant ridge, a function of world azimuth so every view lines up
   const halfAng = Math.atan(((bb.x1 - bb.x0) / 2) / cam.focal) / deg + 8;
   const pts = [];
   for (let a = -halfAng; a <= halfAng; a += 3) {
@@ -278,59 +291,157 @@ function renderWorld(ctx, cam, bb /*{x0,y0,x1,y1}*/, opts = {}) {
   list.map(v => ({ v, d: (v.x - cam.px) ** 2 + (v.y - cam.py) ** 2 }))
     .sort((a, b) => b.d - a.d)
     .forEach(({ v }) => drawVehicle(ctx, cam, v));
+}
 
-  // glass tint near the top of the pane
-  if (opts.tint) {
-    const t = ctx.createLinearGradient(0, bb.y0, 0, bb.y0 + (bb.y1 - bb.y0) * 0.4);
-    t.addColorStop(0, "rgba(140,175,205,0.15)");
-    t.addColorStop(1, "rgba(140,175,205,0)");
-    ctx.fillStyle = t;
-    ctx.fillRect(bb.x0, bb.y0, bb.x1 - bb.x0, (bb.y1 - bb.y0) * 0.4);
+/* ---------- the cabin, as geometry in car space (cosmetic — zones don't see it) ---------- */
+const CABIN = [
+  // roof + windshield header
+  { c: "#161c22", q: [[-0.72, 1.02, 1.42], [0.72, 1.02, 1.42], [0.80, -1.35, 1.40], [-0.80, -1.35, 1.40]] },
+  { c: "#1b222a", q: [[-0.66, 1.18, 1.36], [0.66, 1.18, 1.36], [0.72, 1.02, 1.42], [-0.72, 1.02, 1.42]] },
+  // roof side rails, down to the window tops
+  { c: "#1b222a", q: [[-0.80, 1.02, 1.40], [-0.80, -1.35, 1.40], [-0.86, -1.35, 1.33], [-0.86, 1.02, 1.33]] },
+  { c: "#1b222a", q: [[0.80, 1.02, 1.40], [0.80, -1.35, 1.40], [0.86, -1.35, 1.33], [0.86, 1.02, 1.33]] },
+  // A-pillars
+  { c: "#232b33", q: [[-0.84, 1.62, 0.98], [-0.66, 1.18, 1.36], [-0.72, 1.02, 1.40], [-0.92, 1.35, 0.93]] },
+  { c: "#232b33", q: [[0.84, 1.62, 0.98], [0.66, 1.18, 1.36], [0.72, 1.02, 1.40], [0.92, 1.35, 0.93]] },
+  // dash: top surface + face toward you
+  { c: "#2a323b", q: [[-0.90, 1.15, 0.96], [0.90, 1.15, 0.96], [0.84, 1.60, 0.99], [-0.84, 1.60, 0.99]] },
+  { c: "#20272e", q: [[-0.90, 1.15, 0.58], [0.90, 1.15, 0.58], [0.90, 1.15, 0.96], [-0.90, 1.15, 0.96]] },
+  // front doors below the beltline
+  { c: "#262e36", q: [[-0.90, 1.40, 0.95], [-0.88, -1.10, 0.95], [-0.88, -1.10, 0.22], [-0.90, 1.40, 0.22]] },
+  { c: "#262e36", q: [[0.90, 1.40, 0.95], [0.88, -1.10, 0.95], [0.88, -1.10, 0.22], [0.90, 1.40, 0.22]] },
+  // B-pillars
+  { c: "#1d242b", q: [[-0.87, -0.92, 0.90], [-0.87, -1.08, 0.90], [-0.85, -1.08, 1.36], [-0.85, -0.92, 1.36]] },
+  { c: "#1d242b", q: [[0.87, -0.92, 0.90], [0.87, -1.08, 0.90], [0.85, -1.08, 1.36], [0.85, -0.92, 1.36]] },
+  // rear doors below glass, C-pillars, rear seatback
+  { c: "#242c34", q: [[-0.88, -1.08, 0.95], [-0.86, -2.10, 0.95], [-0.86, -2.10, 0.28], [-0.88, -1.08, 0.28]] },
+  { c: "#242c34", q: [[0.88, -1.08, 0.95], [0.86, -2.10, 0.95], [0.86, -2.10, 0.28], [0.88, -1.08, 0.28]] },
+  { c: "#1d242b", q: [[-0.86, -1.95, 0.92], [-0.84, -2.18, 0.92], [-0.84, -2.18, 1.36], [-0.86, -1.95, 1.36]] },
+  { c: "#1d242b", q: [[0.86, -1.95, 0.92], [0.84, -2.18, 0.92], [0.84, -2.18, 1.36], [0.86, -1.95, 1.36]] },
+  { c: "#2b333c", q: [[-0.82, -1.30, 0.35], [0.82, -1.30, 0.35], [0.82, -1.30, 1.04], [-0.82, -1.30, 1.04]] },
+  // passenger seat + headrest (you look past it out the right window)
+  { c: "#2b333c", q: [[0.12, -0.30, 0.30], [0.62, -0.30, 0.30], [0.62, -0.30, 1.06], [0.12, -0.30, 1.06]] },
+  { c: "#242c34", q: [[0.22, -0.28, 1.10], [0.52, -0.28, 1.10], [0.52, -0.28, 1.30], [0.22, -0.28, 1.30]] },
+  // instrument pod + the dash screen's bezel (tablet-style, above the dash)
+  { c: "#10151a", q: [[-0.62, 1.14, 0.94], [-0.08, 1.14, 0.94], [-0.08, 1.24, 0.68], [-0.62, 1.24, 0.68]] },
+  { c: "#10151a", q: [[0.03, 1.405, 1.16], [0.53, 1.405, 1.16], [0.53, 1.405, 0.93], [0.03, 1.405, 0.93]] },
+];
+const SCREEN_Q = [[0.06, 1.40, 1.13], [0.50, 1.40, 1.13], [0.50, 1.40, 0.955], [0.06, 1.40, 0.955]];
+const GAUGES = [{ p: [-0.475, 1.17, 0.875], frac: 0.29 }, { p: [-0.235, 1.17, 0.875], frac: 0.54 }];
+const WHEEL = { C: [-0.35, 1.0, 0.81], R: 0.19, v: [0, -Math.sin(25 * deg), Math.cos(25 * deg)] };
+const RV_A = [-0.02, 1.25, 1.32];       // where the drawn mirrors hang (cabin art;
+const ML_A = [-1.03, 1.30, 1.01];       //  the glass CONTENT still comes from demo 04's
+const MR_A = [1.03, 1.30, 1.01];        //  cone origins, unchanged)
+
+function drawCabin(ctx, cam) {
+  CABIN.map(o => {
+    const z = o.q.reduce((s, p) => s + camPt(cam, ...p)[2], 0);
+    return { o, z };
+  }).sort((a, b) => b.z - a.z)
+    .forEach(({ o }) => poly(ctx, cam, o.q, o.c));
+
+  // gauges, projected onto the pod
+  for (const g of GAUGES) {
+    const p = camPt(cam, ...g.p);
+    if (p[2] <= NEAR) continue;
+    const gx = SX(cam, p), gy = SY(cam, p), r = 0.055 * cam.focal / p[2];
+    if (gx < -60 || gx > ctx.canvas.width + 60) continue;
+    ctx.fillStyle = "#0d1116";
+    ctx.beginPath(); ctx.arc(gx, gy, r, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#46525d";
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    ctx.stroke();
+    ctx.strokeStyle = "#77828c";
+    ctx.lineWidth = Math.max(0.8, r * 0.035);
+    const ga = f => (210 - 240 * f) * deg;
+    for (let i = 0; i <= 6; i++) {
+      const a = ga(i / 6);
+      ctx.beginPath();
+      ctx.moveTo(gx + Math.cos(a) * r * 0.76, gy - Math.sin(a) * r * 0.76);
+      ctx.lineTo(gx + Math.cos(a) * r * 0.92, gy - Math.sin(a) * r * 0.92);
+      ctx.stroke();
+    }
+    const na = ga(g.frac);
+    ctx.strokeStyle = "#d95f4b";
+    ctx.lineWidth = Math.max(1.2, r * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(gx + Math.cos(na) * r * 0.8, gy - Math.sin(na) * r * 0.8);
+    ctx.stroke();
+  }
+
+  // the dash screen: demo 04's top-down view, affine-mapped onto the console
+  const sp = SCREEN_Q.map(p => camPt(cam, ...p));
+  if (sp.every(p => p[2] > NEAR)) {
+    const s = sp.map(p => [SX(cam, p), SY(cam, p)]);
+    drawMinimap(mmx, { x: 0, y: 0, w: mm.width, h: mm.height });
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(s[0][0], s[0][1]);
+    for (let i = 1; i < 4; i++) ctx.lineTo(s[i][0], s[i][1]);
+    ctx.closePath();
+    ctx.clip();
+    ctx.transform((s[1][0] - s[0][0]) / mm.width, (s[1][1] - s[0][1]) / mm.width,
+                  (s[3][0] - s[0][0]) / mm.height, (s[3][1] - s[0][1]) / mm.height,
+                  s[0][0], s[0][1]);
+    ctx.drawImage(mm, 0, 0);
+    ctx.restore();
+  }
+
+  // steering wheel: a tilted ring in 3D, directly in front of YOUR seat
+  const Cw = camPt(cam, ...WHEEL.C);
+  if (Cw[2] > NEAR) {
+    const rim = [];
+    let behind = false;
+    for (let th = 0; th < 360; th += 12) {
+      const p = camPt(cam,
+        WHEEL.C[0] + WHEEL.R * Math.cos(th * deg),
+        WHEEL.C[1] + WHEEL.R * Math.sin(th * deg) * WHEEL.v[1],
+        WHEEL.C[2] + WHEEL.R * Math.sin(th * deg) * WHEEL.v[2]);
+      if (p[2] <= NEAR) { behind = true; break; }
+      rim.push([SX(cam, p), SY(cam, p)]);
+    }
+    if (!behind) {
+      const lw = 0.032 * cam.focal / Cw[2];
+      ctx.strokeStyle = "#10151b";
+      ctx.lineWidth = lw;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(rim[0][0], rim[0][1]);
+      for (const [x, y] of rim) ctx.lineTo(x, y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.lineCap = "round";
+      ctx.lineWidth = lw * 0.75;
+      for (const a of [200, 340, 90]) {
+        const p1 = camPt(cam,
+          WHEEL.C[0] + WHEEL.R * 0.92 * Math.cos(a * deg),
+          WHEEL.C[1] + WHEEL.R * 0.92 * Math.sin(a * deg) * WHEEL.v[1],
+          WHEEL.C[2] + WHEEL.R * 0.92 * Math.sin(a * deg) * WHEEL.v[2]);
+        ctx.beginPath();
+        ctx.moveTo(SX(cam, Cw), SY(cam, Cw));
+        ctx.lineTo(SX(cam, p1), SY(cam, p1));
+        ctx.stroke();
+      }
+      ctx.lineCap = "butt";
+      ctx.fillStyle = "#1a2129";
+      ctx.beginPath();
+      ctx.arc(SX(cam, Cw), SY(cam, Cw), lw * 1.1, 0, 7);
+      ctx.fill();
+    }
   }
 }
 
-function renderView(ctx, path, cam, bb, opts) {
-  ctx.save();
-  ctx.clip(path);
-  renderWorld(ctx, cam, bb, opts);
-  ctx.restore();
+/* ---------- mirrors: billboards anchored to the cabin ---------- */
+function mirrorRect(cam, anchor, physW, ratio, minW, maxW, W, H) {
+  const p = camPt(cam, anchor[0], anchor[1], anchor[2]);
+  if (p[2] < 0.24) return null;
+  const w = Math.max(minW, Math.min(maxW, physW * cam.focal / p[2]));
+  const x = SX(cam, p), y = SY(cam, p);
+  if (x < -w || x > W + w || y < -w || y > H + w) return null;
+  return { x: x - w / 2, y: y - w * ratio / 2, w, h: w * ratio };
 }
 
-/* ---------- layout: panes, pillars, mirrors — all fractions of the canvas ---------- */
-function layout(W, H) {
-  const topY = H * 0.045, dashTop = H * 0.72, sill = H * 0.66, hy = H * 0.40;
-  const slant = W * 0.02, bpw = W * 0.018;
-  const wsX0 = W * 0.245, wsX1 = W * 0.755, lwX1 = W * 0.205, rwX0 = W * 0.795;
-  const xAt = (xb, y) => xb + slant * (dashTop - y) / (dashTop - topY);      // A-pillar lean
-
-  const ws = new Path2D();
-  ws.moveTo(wsX0, dashTop); ws.lineTo(wsX1, dashTop);
-  ws.lineTo(wsX1 - slant, topY); ws.lineTo(wsX0 + slant, topY); ws.closePath();
-
-  const lw = new Path2D();
-  lw.moveTo(bpw, H * 0.125); lw.lineTo(xAt(lwX1, H * 0.075), H * 0.075);
-  lw.lineTo(xAt(lwX1, sill), sill); lw.lineTo(bpw, sill); lw.closePath();
-
-  const rw = new Path2D();
-  rw.moveTo(W - xAt(W - rwX0, H * 0.075) , H * 0.075); rw.lineTo(W - bpw, H * 0.125);
-  rw.lineTo(W - bpw, sill); rw.lineTo(W - xAt(W - rwX0, sill), sill); rw.closePath();
-
-  const wsF = (0.255 * W) / Math.tan(46 * deg);
-  const swF = ((lwX1 - bpw) / 2) / Math.tan(21 * deg);
-
-  // glass proportions follow real mirrors (side ~1.6:1, rear-view ~3.3:1) so the
-  // vertical field of view is honest too
-  const rv = { w: 0.185 * W, h: 0.185 * W * 0.30 };
-  rv.x = 0.5 * W - rv.w / 2; rv.y = 0.075 * H;
-  const mw = 0.125 * W, mh = mw * 0.62;
-  const mL = { x: lwX1 - mw - 0.008 * W, y: sill - mh - 0.012 * H, w: mw, h: mh };
-  const mR = { x: rwX0 + 0.008 * W, y: sill - mh - 0.012 * H, w: mw, h: mh };
-
-  return { W, H, topY, dashTop, sill, hy, slant, bpw, wsX0, wsX1, lwX1, rwX0, xAt,
-           ws, lw, rw, wsF, swF, rv, mL, mR };
-}
-
-/* ---------- mirrors: bezel + flipped world + glare ---------- */
 function drawMirror(ctx, r, pos, dirDeg, hFovDeg, opts = {}) {
   const pad = Math.max(3, r.w * 0.035);
   ctx.fillStyle = "#161c22";
@@ -368,150 +479,16 @@ function drawMirror(ctx, r, pos, dirDeg, hFovDeg, opts = {}) {
   ctx.stroke(glass);
 }
 
-/* ---------- cabin chrome ---------- */
-function drawCabin(ctx, L) {
-  const { W, H, topY, dashTop, sill } = L;
-
-  // door cards under the side windows
-  ctx.fillStyle = "#262e36";
-  ctx.fillRect(0, sill, L.wsX0, dashTop - sill);
-  ctx.fillRect(L.wsX1, sill, W - L.wsX1, dashTop - sill);
-  ctx.fillStyle = "#10151a";
-  ctx.fillRect(0, sill, L.wsX0, 3);
-  ctx.fillRect(L.wsX1, sill, W - L.wsX1, 3);
-
-  // B-pillar slivers at the screen edges
-  ctx.fillStyle = "#191f26";
-  ctx.fillRect(0, 0, L.bpw, dashTop);
-  ctx.fillRect(W - L.bpw, 0, L.bpw, dashTop);
-
-  // A-pillars
-  for (const [xb0, xb1] of [[L.lwX1, L.wsX0], [L.wsX1, L.rwX0]]) {
-    ctx.beginPath();
-    ctx.moveTo(xb0, dashTop);
-    ctx.lineTo(xb1, dashTop);
-    ctx.lineTo(xb1 < W / 2 ? xb1 + L.slant : xb1 - L.slant, topY);
-    ctx.lineTo(xb0 < W / 2 ? xb0 + L.slant : xb0 - L.slant, topY);
-    ctx.closePath();
-    ctx.fillStyle = "#222a32";
-    ctx.fill();
-    ctx.strokeStyle = "#12181e";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
-
-  // headliner + soft shadow onto the glass
-  ctx.fillStyle = "#171d23";
-  ctx.fillRect(0, 0, W, topY);
-  const hs = ctx.createLinearGradient(0, topY, 0, topY + H * 0.06);
-  hs.addColorStop(0, "rgba(0,0,0,0.28)");
-  hs.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = hs;
-  ctx.fillRect(0, topY, W, H * 0.06);
-
-  // dash
-  const dg = ctx.createLinearGradient(0, dashTop, 0, H);
-  dg.addColorStop(0, "#2a323b");
-  dg.addColorStop(1, "#171d24");
-  ctx.fillStyle = dg;
-  ctx.fillRect(0, dashTop, W, H - dashTop);
-  ctx.fillStyle = "#39434f";
-  ctx.fillRect(0, dashTop, W, 2);
-
-  // vents
-  ctx.strokeStyle = "#39434d";
-  ctx.lineWidth = 2;
-  for (const vx of [0.16 * W, 0.62 * W]) {
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath();
-      ctx.moveTo(vx, dashTop + H * 0.024 + i * 5);
-      ctx.lineTo(vx + 0.05 * W, dashTop + H * 0.024 + i * 5);
-      ctx.stroke();
-    }
-  }
-
-  // instrument cluster
-  const cl = { x: 0.315 * W, y: dashTop + 0.018 * H, w: 0.17 * W, h: 0.115 * H };
-  ctx.fillStyle = "#10151a";
-  ctx.beginPath();
-  ctx.roundRect(cl.x, cl.y, cl.w, cl.h, 8);
-  ctx.fill();
-  ctx.strokeStyle = "#39434d";
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  const gaugeR = Math.min(cl.h * 0.38, cl.w * 0.18);
-  const gy = cl.y + cl.h / 2;
-  const gaugeAng = f => (210 - 240 * f) * deg;
-  for (const [gx, frac] of [[cl.x + cl.w * 0.28, 0.29], [cl.x + cl.w * 0.72, 0.54]]) {
-    ctx.strokeStyle = "#46525d";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(gx, gy, gaugeR, 0, 7);
-    ctx.stroke();
-    ctx.strokeStyle = "#77828c";
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 6; i++) {
-      const a = gaugeAng(i / 6);
-      ctx.beginPath();
-      ctx.moveTo(gx + Math.cos(a) * gaugeR * 0.78, gy - Math.sin(a) * gaugeR * 0.78);
-      ctx.lineTo(gx + Math.cos(a) * gaugeR * 0.92, gy - Math.sin(a) * gaugeR * 0.92);
-      ctx.stroke();
-    }
-    const na = gaugeAng(frac);
-    ctx.strokeStyle = "#d95f4b";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(gx, gy);
-    ctx.lineTo(gx + Math.cos(na) * gaugeR * 0.8, gy - Math.sin(na) * gaugeR * 0.8);
-    ctx.stroke();
-    ctx.fillStyle = "#2c363f";
-    ctx.beginPath();
-    ctx.arc(gx, gy, 2.5, 0, 7);
-    ctx.fill();
-  }
-
-  // steering wheel (nearest thing to you — drawn over the dash)
-  const wcx = 0.40 * W, wcy = 1.12 * H, wR = 0.36 * H;
-  ctx.strokeStyle = "#10151b";
-  ctx.lineWidth = 0.034 * H;
-  ctx.beginPath();
-  ctx.arc(wcx, wcy, wR, 0, 7);
-  ctx.stroke();
-  ctx.strokeStyle = "#232b33";
-  ctx.lineWidth = 0.008 * H;
-  ctx.beginPath();
-  ctx.arc(wcx, wcy, wR + 0.011 * H, Math.PI * 1.15, Math.PI * 1.85);
-  ctx.stroke();
-  ctx.lineCap = "round";
-  ctx.strokeStyle = "#10151b";
-  ctx.lineWidth = 0.024 * H;
-  for (const a of [205, 335]) {
-    ctx.beginPath();
-    ctx.moveTo(wcx + Math.cos(a * deg) * wR * 0.97, wcy - Math.sin(a * deg) * wR * 0.97);
-    ctx.lineTo(wcx + Math.cos(a * deg) * wR * 0.30, wcy - Math.sin(a * deg) * wR * 0.30);
-    ctx.stroke();
-  }
-  ctx.lineCap = "butt";
-
-  // rear-view mirror stem
-  ctx.fillStyle = "#161c22";
-  ctx.fillRect(0.5 * W - 4, topY, 8, L.rv.y - topY);
-}
-
 /* ---------- the dash screen: demo 04's top-down view, live ---------- */
-function drawMinimap(ctx, r) {
-  ctx.fillStyle = "#10151a";
-  ctx.beginPath();
-  ctx.roundRect(r.x - 5, r.y - 5, r.w + 10, r.h + 10, 8);
-  ctx.fill();
-  ctx.strokeStyle = "#39434d";
-  ctx.lineWidth = 1;
-  ctx.stroke();
+const mm = document.createElement("canvas");
+mm.width = 240; mm.height = 108;
+const mmx = mm.getContext("2d");
 
-  const scr = new Path2D();
-  scr.roundRect(r.x, r.y, r.w, r.h, 4);
+function drawMinimap(ctx, r) {
   ctx.save();
-  ctx.clip(scr);
+  ctx.beginPath();
+  ctx.rect(r.x, r.y, r.w, r.h);
+  ctx.clip();
   ctx.fillStyle = "#131a21";
   ctx.fillRect(r.x, r.y, r.w, r.h);
 
@@ -564,7 +541,7 @@ function drawMinimap(ctx, r) {
   ctx.restore();
 }
 
-/* ---------- status pill on the windshield ---------- */
+/* ---------- status pill (HUD) ---------- */
 function statusOf(seen) {
   if (seen.has("mirL") || seen.has("mirR")) return { txt: "in your side mirror", col: "#7c5cb8" };
   if (seen.has("rear")) return { txt: "in your rear-view mirror", col: "#2e7fbf" };
@@ -574,10 +551,10 @@ function statusOf(seen) {
   }
   return { txt: "INVISIBLE — in none of your glass", col: "#c0392b" };
 }
-function drawStatus(ctx, L, st, t) {
+function drawStatus(ctx, st, t) {
   ctx.font = "600 12px -apple-system, sans-serif";
   const w = ctx.measureText(st.txt).width + 34;
-  const x = L.wsX0 + L.slant + 12, y = L.H * 0.068, h = 24;
+  const x = 16, y = 12, h = 24;
   const invisible = st.col === "#c0392b";
   ctx.globalAlpha = invisible ? 0.82 + 0.18 * Math.sin(t * 7) : 1;
   ctx.fillStyle = invisible ? "#c0392b" : "rgba(255,253,247,0.94)";
@@ -595,8 +572,19 @@ function drawStatus(ctx, L, st, t) {
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(st.txt, x + 24, y + h / 2 + 0.5);
-  ctx.textBaseline = "alphabetic";
   ctx.globalAlpha = 1;
+  if (Math.abs(head) > 28) {
+    ctx.font = "600 11px -apple-system, sans-serif";
+    ctx.fillStyle = "rgba(255,253,247,0.95)";
+    const msg = "shoulder check — the numbers only count head-still glass";
+    const w2 = ctx.measureText(msg).width + 16;
+    ctx.beginPath();
+    ctx.roundRect(x, y + h + 6, w2, 20, 10);
+    ctx.fill();
+    ctx.fillStyle = "#6f6a5e";
+    ctx.fillText(msg, x + 8, y + h + 16.5);
+  }
+  ctx.textBaseline = "alphabetic";
 }
 
 /* ---------- main frame ---------- */
@@ -614,36 +602,48 @@ function render(t) {
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const W = r.width, H = r.height;
-  L = layout(W, H);
-
-  // cabin base — anything not painted by a pane is car body
-  ctx.fillStyle = "#1e252c";
-  ctx.fillRect(0, 0, W, H);
+  const focal = (W / 2) / Math.tan(HFOV / 2 * deg);
+  // you lean into a glance: the eye slides a little toward the window you're
+  // checking (cosmetic — the zone model's eye point never moves)
+  const eye = { x: EYE.x - 0.20 * head / 115, y: EYE.y, z: EYE.z };
+  const cam = makeCam(eye, 90 + head, 1, focal, W / 2, 0.45 * H);
+  L = { W, H };
 
   const seen = coverage(passer.x, passer.y);
   passer.color = seen.has("mirL") || seen.has("mirR") ? "#7c5cb8"
     : seen.has("rear") ? "#2e7fbf"
     : seen.size > 0 ? "#3d9970" : "#c0392b";
 
-  // the three window panes — one eye, three planar projections
-  renderView(ctx, L.ws, makeCam(EYE, 90, 1, L.wsF, 0.5 * W, L.hy),
-             { x0: L.wsX0, y0: L.topY, x1: L.wsX1, y1: L.dashTop }, { tint: true });
-  renderView(ctx, L.lw, makeCam(EYE, 162, 1, L.swF, (L.bpw + L.lwX1) / 2, L.hy),
-             { x0: L.bpw, y0: H * 0.075, x1: L.lwX1, y1: L.sill }, { tint: true });
-  renderView(ctx, L.rw, makeCam(EYE, 18, 1, L.swF, (L.rwX0 + W - L.bpw) / 2, L.hy),
-             { x0: L.rwX0, y0: H * 0.075, x1: W - L.bpw, y1: L.sill }, { tint: true });
+  renderWorld(ctx, cam, { x0: 0, y0: 0, x1: W, y1: H }, {});
+  drawCabin(ctx, cam);
 
-  drawCabin(ctx, L);
+  // mirrors: bezels ride the cabin; glass stays demo 04's cones
+  L.rv = mirrorRect(cam, RV_A, 0.30, 0.32, 120, 0.24 * W, W, H);
+  if (L.rv) {
+    const s0 = camPt(cam, RV_A[0], RV_A[1], 1.34), s1 = camPt(cam, RV_A[0] - 0.02, RV_A[1] - 0.06, 1.40);
+    if (s0[2] > NEAR && s1[2] > NEAR) {
+      ctx.strokeStyle = "#161c22";
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(SX(cam, s0), SY(cam, s0));
+      ctx.lineTo(SX(cam, s1), SY(cam, s1));
+      ctx.stroke();
+    }
+    drawMirror(ctx, L.rv, REARVIEW, 270, 2 * FOV.rearHalf, { headrests: true });
+  }
+  L.mLr = mirrorRect(cam, ML_A, 0.185, 0.64, 76, 0.15 * W, W, H);
+  if (L.mLr) drawMirror(ctx, L.mLr, MIR_L, 270 - cfg.left, 2 * FOV.sideHalf, { ownCar: true });
+  L.mRr = mirrorRect(cam, MR_A, 0.185, 0.64, 76, 0.15 * W, W, H);
+  if (L.mRr) drawMirror(ctx, L.mRr, MIR_R, 270 + cfg.right, 2 * FOV.sideHalf, { ownCar: true });
 
-  // mirrors: rear-view + the two you can re-aim
-  drawMirror(ctx, L.rv, REARVIEW, 270, 2 * FOV.rearHalf, { headrests: true });
-  drawMirror(ctx, L.mL, MIR_L, 270 - cfg.left, 2 * FOV.sideHalf, { ownCar: true });
-  drawMirror(ctx, L.mR, MIR_R, 270 + cfg.right, 2 * FOV.sideHalf, { ownCar: true });
+  // cabin vignette
+  const vg = ctx.createRadialGradient(W / 2, H * 0.46, H * 0.35, W / 2, H * 0.5, H * 0.95);
+  vg.addColorStop(0, "rgba(10,14,18,0)");
+  vg.addColorStop(1, "rgba(10,14,18,0.26)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
 
-  // dash screen: the god view
-  drawMinimap(ctx, { x: 0.545 * W, y: L.dashTop + 0.028 * H, w: 0.17 * W, h: 0.115 * H });
-
-  drawStatus(ctx, L, statusOf(seen), t);
+  drawStatus(ctx, statusOf(seen), t);
 }
 
 /* ---------- DOM metrics ---------- */
@@ -704,44 +704,57 @@ document.getElementById("pause").addEventListener("click", () => {
   document.getElementById("pause").textContent = paused ? "▶" : "⏸";
 });
 
-/* drag a side mirror to aim it */
-let drag = null;
+/* pointer: drag a mirror to aim it; drag anywhere else to turn your head */
+let mirDrag = null;
+const inRect = (m, x, y) => m && x >= m.x && x <= m.x + m.w && y >= m.y && y <= m.y + m.h;
 cv.addEventListener("pointerdown", e => {
   if (!L) return;
   const b = cv.getBoundingClientRect();
   const x = e.clientX - b.left, y = e.clientY - b.top;
-  for (const [side, m] of [["left", L.mL], ["right", L.mR]]) {
-    if (x >= m.x && x <= m.x + m.w && y >= m.y && y <= m.y + m.h) {
-      drag = { side, x0: e.clientX, v0: cfg[side] };
-      cv.setPointerCapture(e.pointerId);
-    }
-  }
+  cv.setPointerCapture(e.pointerId);
+  if (inRect(L.mLr, x, y)) mirDrag = { side: "left", x0: e.clientX, v0: cfg.left };
+  else if (inRect(L.mRr, x, y)) mirDrag = { side: "right", x0: e.clientX, v0: cfg.right };
+  else headDrag = { x0: e.clientX, yaw0: head, yaw: head };
 });
 cv.addEventListener("pointermove", e => {
   const b = cv.getBoundingClientRect();
   const x = e.clientX - b.left, y = e.clientY - b.top;
-  if (drag) {
-    const d = (e.clientX - drag.x0) * 0.1;
-    const v = Math.max(0, Math.min(40, drag.v0 + (drag.side === "left" ? -d : d)));
-    cfg[drag.side] = Math.round(v * 2) / 2;
-    const cap = drag.side === "left" ? "Left" : "Right";
-    document.getElementById("s" + cap).value = cfg[drag.side];
-    document.getElementById("v" + cap).textContent = cfg[drag.side].toFixed(1) + "°";
+  if (mirDrag) {
+    const d = (e.clientX - mirDrag.x0) * 0.1;
+    const v = Math.max(0, Math.min(40, mirDrag.v0 + (mirDrag.side === "left" ? -d : d)));
+    cfg[mirDrag.side] = Math.round(v * 2) / 2;
+    const cap = mirDrag.side === "left" ? "Left" : "Right";
+    document.getElementById("s" + cap).value = cfg[mirDrag.side];
+    document.getElementById("v" + cap).textContent = cfg[mirDrag.side].toFixed(1) + "°";
     setPreset(null);
     lastInvis = null; invisT = 0;
     updateDom();
     return;
   }
-  const over = L && [L.mL, L.mR].some(m => x >= m.x && x <= m.x + m.w && y >= m.y && y <= m.y + m.h);
-  cv.style.cursor = over ? "ew-resize" : "default";
+  if (headDrag) {
+    headDrag.yaw = Math.max(-115, Math.min(115, headDrag.yaw0 + (e.clientX - headDrag.x0) * 0.35));
+    return;
+  }
+  cv.style.cursor = (inRect(L && L.mLr, x, y) || inRect(L && L.mRr, x, y)) ? "ew-resize" : "grab";
 });
-cv.addEventListener("pointerup", () => { drag = null; });
+const endDrag = () => { mirDrag = null; headDrag = null; };
+cv.addEventListener("pointerup", endDrag);
+cv.addEventListener("pointercancel", endDrag);
+
+window.addEventListener("keydown", e => {
+  if (e.key === "ArrowLeft") { keyLook = 100; e.preventDefault(); }
+  if (e.key === "ArrowRight") { keyLook = -100; e.preventDefault(); }
+});
+window.addEventListener("keyup", e => {
+  if ((e.key === "ArrowLeft" && keyLook > 0) || (e.key === "ArrowRight" && keyLook < 0)) keyLook = 0;
+});
 
 /* ---------- loop ---------- */
 let last = performance.now(), domTick = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  head += (headGoal() - head) * (1 - Math.exp(-7 * dt));   // glance, then ease back
   if (!paused) {
     odo += OWN_V * dt;
     passer.y += cfg.pass * dt;
@@ -758,8 +771,12 @@ updateDom();
 requestAnimationFrame(frame);
 
 /* console hook for tests and clip scripting: COCKPIT.jump(-4) parks the passer
-   in the school-aim blind zone */
+   in the school-aim blind zone; COCKPIT.look(90) holds a head turn (null releases) */
 window.COCKPIT = {
   jump: y => { passer.y = y; },
-  state: () => ({ passY: passer.y, odo, seen: [...coverage(passer.x, passer.y)] }),
+  look: d => {                     // instant for scripting; spring applies on release
+    hookLook = d === null ? null : Math.max(-115, Math.min(115, d));
+    if (hookLook !== null) head = hookLook;
+  },
+  state: () => ({ passY: passer.y, odo, head, seen: [...coverage(passer.x, passer.y)] }),
 };

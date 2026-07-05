@@ -115,11 +115,16 @@ the page.
 
 **Claim:** #2, again — demo 04 from the driver's seat. Same zone constants as The Mirrors
 (16° flat side glass, 30° rear-view, ±70° head-still eyes), so the blind-zone numbers
-agree; the new thing is the view. A software-3D cockpit (vanilla canvas, planar pinhole
-projection per window; mirror cameras render horizontally flipped like real glass): three
-window panes, a rear-view and two live-aimable side mirrors (drag to aim), a car easing
-past in the left lane, and the dash infotainment screen literally running demo 04's
-top-down view as ground truth. With school aim you watch the passer leave the side mirror
+agree; the new thing is the view. A software-3D cockpit (vanilla canvas): one first-person
+camera in the driver's seat with a turnable head — drag the road or hold ←/→ to glance,
+and the view eases back when you let go — inside a 3D cabin (pillars, roof, dash, doors,
+seats; the windows are the gaps). Mirrors are cabin-anchored billboards whose glass is
+rendered by demo 04's cone cameras, horizontally flipped like real glass: a rear-view and
+two live-aimable side mirrors (drag to aim), a car easing past in the left lane, and the
+dash screen literally running demo 04's top-down view as ground truth. The glance is the
+shoulder check made literal — turning your head finds the "invisible" car with your own
+eyes, and the page says out loud that the coverage numbers stay head-still on purpose.
+With school aim you watch the passer leave the side mirror
 *while still behind your shoulder* and go invisible for measured seconds (the "invisible
 per pass" metric); with BGE aim the hand-off rear-view → mirror → window never breaks. The
 school-aim mirror also shows your own rear door — glass spent on your own paint. Honesty

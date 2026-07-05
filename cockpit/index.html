@@ -15,7 +15,7 @@
 <header id="topbar">
   <div id="titleblock">
     <h1>The Cockpit</h1>
-    <p>Demo 04 proved the blind spot from above. This is the same car, same glass, same geometry — from the seat. One car eases past on your left; watch your mirrors hand it off. Or drop it. <em>Drag a side mirror to re-aim it.</em></p>
+    <p>Demo 04 proved the blind spot from above. This is the same car, same glass, same geometry — from the driver's seat. One car eases past on your left; watch your mirrors hand it off. Or drop it. <em>Drag a side mirror to re-aim it. Drag the road (or hold ← / →) to glance over your shoulder — the view eases back when you let go.</em></p>
   </div>
   <div id="presets">
     <button id="pSchool" class="preset active">Driving-school setting</button>
@@ -53,7 +53,7 @@
         <p>0° = pointed straight down your own flank (you see your car). The driving-school "just see the edge of your car" lands around 0–6°.</p></div>
       <div class="slider"><label>Right mirror, degrees outward <b id="vRight"></b></label>
         <input type="range" id="sRight" min="0" max="40" step="0.5" value="3">
-        <p>The BGE method: lean your head to the window, set the mirror to <em>just</em> lose your car, sit back up — you land near 25–30°.</p></div>
+        <p>The BGE method: lean your head to the window, set the mirror to <em>just</em> lose your car, sit back up — you land near 25–30°. (It's across the cabin — glance right to see it, like in a real car.)</p></div>
       <div class="slider"><label>Overtaking speed difference <b id="vPass"></b></label>
         <input type="range" id="sPass" min="2" max="12" step="0.5" value="5">
         <p>How fast the passing car slides through your glass. Slow passes camp in the blind zone the longest.</p></div>
@@ -66,8 +66,9 @@
         <li><b>Wide aim:</b> it never blinks out. Rear-view hands to side mirror hands to your own window, like a relay.</li>
         <li>The dash screen runs the <a href="../mirrors/">top-down view from demo 04</a>, so you can watch where the car <em>really</em> is while your mirrors lie (or don't).</li>
         <li>Your own paint: with school aim, the inner edge of each side mirror is your own rear door — glass pointed at something bolted to the car.</li>
+        <li>When the car goes invisible, glance left (drag the road): your eyes find it instantly. That's the shoulder check — and the metrics ignore it <em>on purpose</em>, because the page measures what you know while facing forward.</li>
       </ul>
-      <p class="foot">Same vision geometry as <a href="../mirrors/">The Mirrors</a> — 16° flat side mirrors, 30° rear-view, ±70° head-still eyes (SAE BGE, Platzer 1995), so the blind-zone numbers agree. The cabin is honest cartoonery: pillars are drawn but not modeled as blockers (a small head-move defeats a pillar; no head-move fixes bad mirror aim), and every window and mirror is a flat pinhole projection — no lens, no curvature, right-side mirrors on real cars are convex and show more. See <a href="../docs/evidence.md">evidence</a>.</p>
+      <p class="foot">Same vision geometry as <a href="../mirrors/">The Mirrors</a> — 16° flat side mirrors, 30° rear-view, ±70° head-still eyes (SAE BGE, Platzer 1995), so the blind-zone numbers agree. The cabin is honest cartoonery: pillars are drawn but not modeled as blockers (a small head-move defeats a pillar; no head-move fixes bad mirror aim), turning your head changes the picture but never the coverage numbers (head-still is the point), and the view is a flat pinhole projection — no lens, no curvature, right-side mirrors on real cars are convex and show more. See <a href="../docs/evidence.md">evidence</a>.</p>
     </section>
   </aside>
 </main>
