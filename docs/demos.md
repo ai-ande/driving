@@ -121,7 +121,8 @@ and the view eases back when you let go — inside a 3D cabin (pillars, roof, da
 seats; the windows are the gaps). Mirrors are cabin-anchored billboards whose glass is
 rendered by demo 04's cone cameras, horizontally flipped like real glass: a rear-view and
 two live-aimable side mirrors (drag to aim), a stream of overtakers on random sides (bias
-slider; some start in your lane and merge out before passing), and the dash screen
+slider; some start in your lane and merge out before passing; driver profiles include
+sprinters and blind-spot campers who sit at your quarter for seconds), and the dash screen
 literally running demo 04's top-down view as ground truth. The wide preset is tuned (19°
 on this page's flat-glass cones) so the canonical BGE relay is visible on the glass
 itself: rear-view middle → rear-view edge overlapping the side mirror's inner edge →

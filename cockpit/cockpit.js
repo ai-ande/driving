@@ -21,7 +21,7 @@ const MIR_R    = { x: 1.0,   y: 0.75, z: 0.95 };
 
 const FOV = { forwardHalf: 70, rearHalf: 15, sideHalf: 8, range: 70 };
 const OWN_V = 29;                       // your speed (~65 mph) — scenery stream only
-const HFOV = 118;                       // head-still view width: both mirrors visible
+const HFOV = 122;                       // head-still view width: both mirrors visible
 const HEAD_MAX = 60;                    // we aren't owls
 
 const cfg = { left: 3, right: 3, pass: 5, share: 50 };
@@ -92,12 +92,16 @@ let paused = false;
 let lastInvis = null;       // invisible seconds of the last completed pass
 
 function mkCar(o = {}) {
+  const roll = rng();
+  const profile = o.profile ?? (roll < 0.28 ? "quick" : roll < 0.72 ? "steady" : "lurker");
   return {
     side: o.side ?? (rng() < cfg.share / 100 ? -1 : 1),   // -1 = passes on your left
     mid: o.mid ?? (rng() < 0.4),                          // starts in YOUR lane, merges out
     prog: o.mid ? 0 : 1,                                  // lane-change progress
     y: o.y ?? -46,
-    jit: o.jit ?? (0.75 + 0.5 * rng()),
+    profile,
+    jit: o.jit ?? (profile === "quick" ? 1.4 + 0.6 * rng() : 0.8 + 0.4 * rng()),
+    lurk: profile === "lurker" ? 4 + 4 * rng() : 0,       // seconds camped at your quarter
     color: PALETTE[Math.floor(rng() * PALETTE.length)],
     col: "#8d939b",                                        // zone-painted each frame
     invis: 0,
@@ -118,7 +122,12 @@ function advance(dt) {
     } else spawnIn = 1;
   }
   for (const c of cars) {
-    c.y += Math.max(0.8, cfg.pass) * c.jit * dt;
+    let v = Math.max(0.8, cfg.pass) * c.jit;
+    if (c.lurk > 0 && c.y > -6.5 && c.y < -2.2) {   // a camper: sits at your rear quarter
+      c.lurk -= dt;
+      v = Math.min(v, 0.3);
+    }
+    c.y += v * dt;
     if (c.mid && c.prog === 0 && c.y > -20) c.prog = 1e-6;   // signal on, move over
     if (c.prog > 0 && c.prog < 1) c.prog = Math.min(1, c.prog + dt / 2);
     if (c.y > -30 && c.y < 8 && coverage(carX(c), c.y).size === 0) c.invis += dt;
@@ -338,15 +347,16 @@ const CABIN = [
   // roof side rails, down to the window tops
   { c: "#1b222a", q: [[-0.80, 1.02, 1.40], [-0.80, -1.35, 1.40], [-0.86, -1.35, 1.33], [-0.86, 1.02, 1.33]] },
   { c: "#1b222a", q: [[0.80, 1.02, 1.40], [0.80, -1.35, 1.40], [0.86, -1.35, 1.33], [0.86, 1.02, 1.33]] },
-  // A-pillars (the right one is slimmer so its window sliver survives at rest)
+  // A-pillars (the right one is slim and meets the right door up front, so the
+  // right window and its mirror stay in the head-still view)
   { c: "#232b33", q: [[-0.84, 1.62, 0.98], [-0.66, 1.18, 1.36], [-0.72, 1.02, 1.40], [-0.92, 1.35, 0.93]] },
-  { c: "#232b33", q: [[0.84, 1.62, 0.98], [0.66, 1.18, 1.36], [0.72, 1.02, 1.40], [0.92, 1.55, 0.95]] },
+  { c: "#232b33", q: [[0.84, 1.62, 0.98], [0.66, 1.18, 1.36], [0.72, 1.06, 1.40], [0.93, 1.80, 0.94]] },
   // dash: top surface + face toward you
   { c: "#2a323b", q: [[-0.90, 1.15, 0.96], [0.90, 1.15, 0.96], [0.84, 1.60, 0.99], [-0.84, 1.60, 0.99]] },
   { c: "#20272e", q: [[-0.90, 1.15, 0.58], [0.90, 1.15, 0.58], [0.90, 1.15, 0.96], [-0.90, 1.15, 0.96]] },
   // front doors below the beltline (glass above, up to the B-pillar at your shoulder)
   { c: "#262e36", q: [[-0.90, 1.40, 0.95], [-0.88, 0.43, 0.95], [-0.88, 0.43, 0.22], [-0.90, 1.40, 0.22]] },
-  { c: "#262e36", q: [[0.90, 1.40, 0.95], [0.88, 0.43, 0.95], [0.88, 0.43, 0.22], [0.90, 1.40, 0.22]] },
+  { c: "#262e36", q: [[0.90, 1.60, 0.95], [0.88, 0.43, 0.95], [0.88, 0.43, 0.22], [0.90, 1.60, 0.22]] },
   // B-pillars, right behind your shoulder
   { c: "#1d242b", q: [[-0.88, 0.55, 0.90], [-0.88, 0.43, 0.90], [-0.85, 0.43, 1.36], [-0.85, 0.55, 1.36]] },
   { c: "#1d242b", q: [[0.88, 0.55, 0.90], [0.88, 0.43, 0.90], [0.85, 0.43, 1.36], [0.85, 0.55, 1.36]] },
@@ -361,16 +371,23 @@ const CABIN = [
   // passenger seat + headrest (you look past it out the right window)
   { c: "#2b333c", q: [[0.12, -0.30, 0.30], [0.62, -0.30, 0.30], [0.62, -0.30, 1.06], [0.12, -0.30, 1.06]] },
   { c: "#242c34", q: [[0.22, -0.28, 1.10], [0.52, -0.28, 1.10], [0.52, -0.28, 1.30], [0.22, -0.28, 1.30]] },
-  // instrument pod + the dash screen's bezel (tablet-style, above the dash)
+  // instrument pod
   { c: "#10151a", q: [[-0.62, 1.14, 0.94], [-0.08, 1.14, 0.94], [-0.08, 1.24, 0.68], [-0.62, 1.24, 0.68]] },
-  { c: "#10151a", q: [[0.03, 1.405, 1.16], [0.53, 1.405, 1.16], [0.53, 1.405, 0.93], [0.03, 1.405, 0.93]] },
 ];
-const SCREEN_Q = [[0.06, 1.40, 1.13], [0.50, 1.40, 1.13], [0.50, 1.40, 0.955], [0.06, 1.40, 0.955]];
+/* the dash screen: built into the middle of the dashboard, toed in toward the driver */
+const BEZEL_Q  = [[-0.01, 1.285, 1.10], [0.47, 1.365, 1.10], [0.47, 1.385, 0.93], [-0.01, 1.305, 0.93]];
+const SCREEN_Q = [[0.02, 1.292, 1.075], [0.44, 1.359, 1.075], [0.44, 1.376, 0.955], [0.02, 1.309, 0.955]];
 const GAUGES = [{ p: [-0.475, 1.17, 0.875], frac: 0.29 }, { p: [-0.235, 1.17, 0.875], frac: 0.54 }];
 const WHEEL = { C: [-0.35, 1.0, 0.81], R: 0.19, v: [0, -Math.sin(25 * deg), Math.cos(25 * deg)] };
-const RV_A = [-0.02, 1.25, 1.32];       // where the drawn mirrors hang (cabin art;
-const ML_A = [-1.03, 1.30, 1.01];       //  the glass CONTENT still comes from demo 04's
-const MR_A = [1.03, 1.52, 1.01];        //  cone origins, unchanged)
+/* mirror housings: bolted to the sail panel at each front window's leading corner
+   (cabin art — the glass CONTENT still comes from demo 04's cone origins, unchanged) */
+const RV_A = [-0.02, 1.25, 1.32];
+const ML_A = [-1.04, 1.37, 1.04];       // housings snug against each A-pillar's base
+const MR_A = [1.04, 1.58, 1.04];
+const SAIL_L = [[-0.872, 1.40, 0.95], [-0.872, 1.20, 0.95], [-0.872, 1.40, 1.16]];
+const SAIL_R = [[0.872, 1.62, 0.95], [0.872, 1.40, 0.95], [0.872, 1.62, 1.16]];
+const ARM_L = [[-0.875, 1.31, 0.99], [-0.875, 1.41, 0.99], [-1.04, 1.40, 1.04], [-1.04, 1.33, 1.04]];
+const ARM_R = [[0.875, 1.48, 0.99], [0.875, 1.58, 0.99], [1.04, 1.62, 1.04], [1.04, 1.54, 1.04]];
 
 function drawCabin(ctx, cam) {
   CABIN.map(o => {
@@ -409,7 +426,9 @@ function drawCabin(ctx, cam) {
     ctx.stroke();
   }
 
-  // the dash screen: demo 04's top-down view, affine-mapped onto the tablet
+  // the dash screen: demo 04's top-down view, affine-mapped into its bezel
+  // (drawn after the sorted quads so the dash never overpaints it)
+  poly(ctx, cam, BEZEL_Q, "#10151a");
   const sp = SCREEN_Q.map(p => camPt(cam, ...p));
   if (sp.every(p => p[2] > NEAR)) {
     const s = sp.map(p => [SX(cam, p), SY(cam, p)]);
@@ -664,9 +683,25 @@ function render(t) {
   }
 
   renderWorld(ctx, cam, { x0: 0, y0: 0, x1: W, y1: H }, {});
+
+  // side mirrors live OUTSIDE: sail panel + arm + housing, drawn before the
+  // cabin so pillars and doors occlude them like anything else out the window
+  L.mLr = mirrorRect(cam, ML_A, 0.20, 0.64, 80, 0.15 * W, W, H);
+  if (L.mLr) {
+    poly(ctx, cam, SAIL_L, "#212930");
+    poly(ctx, cam, ARM_L, "#1a2127");
+    drawMirror(ctx, L.mLr, MIR_L, 270 - cfg.left, 2 * FOV.sideHalf, { ownCar: true });
+  }
+  L.mRr = mirrorRect(cam, MR_A, 0.20, 0.64, 80, 0.15 * W, W, H);
+  if (L.mRr) {
+    poly(ctx, cam, SAIL_R, "#212930");
+    poly(ctx, cam, ARM_R, "#1a2127");
+    drawMirror(ctx, L.mRr, MIR_R, 270 + cfg.right, 2 * FOV.sideHalf, { ownCar: true });
+  }
+
   drawCabin(ctx, cam);
 
-  // mirrors: bezels ride the cabin; glass stays demo 04's cones
+  // the rear-view lives INSIDE, hanging off the header — drawn over the cabin
   L.rv = mirrorRect(cam, RV_A, 0.30, 0.32, 130, 0.24 * W, W, H);
   if (L.rv) {
     const s0 = camPt(cam, RV_A[0], RV_A[1], 1.34), s1 = camPt(cam, RV_A[0] - 0.02, RV_A[1] - 0.06, 1.40);
@@ -680,10 +715,6 @@ function render(t) {
     }
     drawMirror(ctx, L.rv, REARVIEW, 270, 2 * FOV.rearHalf, { headrests: true });
   }
-  L.mLr = mirrorRect(cam, ML_A, 0.20, 0.64, 96, 0.15 * W, W, H);
-  if (L.mLr) drawMirror(ctx, L.mLr, MIR_L, 270 - cfg.left, 2 * FOV.sideHalf, { ownCar: true });
-  L.mRr = mirrorRect(cam, MR_A, 0.20, 0.64, 96, 0.15 * W, W, H);
-  if (L.mRr) drawMirror(ctx, L.mRr, MIR_R, 270 + cfg.right, 2 * FOV.sideHalf, { ownCar: true });
 
   // cabin vignette
   const vg = ctx.createRadialGradient(W / 2, H * 0.46, H * 0.35, W / 2, H * 0.5, H * 0.95);
