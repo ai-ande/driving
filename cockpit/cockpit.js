@@ -378,23 +378,38 @@ const CABIN = [
   { c: "rgba(168,198,220,0.12)", q: [[0.89, 1.56, 0.95], [0.87, 0.55, 0.95], [0.85, 0.55, 1.33], [0.87, 1.48, 1.33]] },
   { c: "rgba(168,198,220,0.12)", q: [[-0.88, 0.43, 0.95], [-0.86, -1.30, 0.95], [-0.84, -1.30, 1.33], [-0.86, 0.43, 1.33]] },
   { c: "rgba(168,198,220,0.12)", q: [[0.88, 0.43, 0.95], [0.86, -1.30, 0.95], [0.84, -1.30, 1.33], [0.86, 0.43, 1.33]] },
-  // instrument pod
-  { c: "#10151a", q: [[-0.62, 1.14, 0.94], [-0.08, 1.14, 0.94], [-0.08, 1.24, 0.68], [-0.62, 1.24, 0.68]] },
+  // instrument pod: an upright binnacle behind the wheel, not a slab on the dash
+  { c: "#1a212a", q: [[-0.62, 1.10, 0.92], [-0.08, 1.10, 0.92], [-0.08, 1.17, 0.64], [-0.62, 1.17, 0.64]] },
 ];
-/* the dash screen: built into the middle of the dashboard, toed in toward the driver */
-const BEZEL_Q  = [[-0.01, 1.285, 1.10], [0.47, 1.365, 1.10], [0.47, 1.385, 0.93], [-0.01, 1.305, 0.93]];
-const SCREEN_Q = [[0.02, 1.292, 1.075], [0.44, 1.359, 1.075], [0.44, 1.376, 0.955], [0.02, 1.309, 0.955]];
-const GAUGES = [{ p: [-0.475, 1.17, 0.875], frac: 0.29 }, { p: [-0.235, 1.17, 0.875], frac: 0.54 }];
+/* the dash screen: an upright panel in the center stack, toed toward the driver */
+const BEZEL_Q  = [[-0.08, 1.075, 0.925], [0.28, 1.13, 0.925], [0.28, 1.15, 0.705], [-0.08, 1.095, 0.705]];
+const SCREEN_Q = [[-0.055, 1.079, 0.895], [0.255, 1.126, 0.895], [0.255, 1.142, 0.735], [-0.055, 1.095, 0.735]];
+const GAUGES = [{ p: [-0.475, 1.09, 0.80], frac: 0.29 }, { p: [-0.235, 1.09, 0.80], frac: 0.54 }];
 const WHEEL = { C: [-0.35, 1.0, 0.81], R: 0.19, v: [0, -Math.sin(25 * deg), Math.cos(25 * deg)] };
-/* mirror housings: bolted to the sail panel at each front window's leading corner
-   (cabin art — the glass CONTENT still comes from demo 04's cone origins, unchanged) */
-const RV_A = [-0.02, 1.25, 1.32];
-const ML_A = [-1.04, 1.37, 1.04];       // housings snug against each A-pillar's base
-const MR_A = [1.04, 1.58, 1.04];
+/* mirrors are oriented 3D rectangles angled at the driver, bolted to the sail
+   panel at each front window's leading corner (cabin art — the glass CONTENT
+   still comes from demo 04's cone origins, unchanged) */
+const RV_C = [-0.02, 1.25, 1.30];       // glass centers
+const ML_C = [-1.04, 1.37, 1.05];
+const MR_C = [1.04, 1.58, 1.05];
 const SAIL_L = [[-0.872, 1.42, 0.95], [-0.872, 1.16, 0.95], [-0.872, 1.42, 1.22]];
 const SAIL_R = [[0.872, 1.64, 0.95], [0.872, 1.34, 0.95], [0.872, 1.64, 1.22]];
 const ARM_L = [[-0.875, 1.31, 0.99], [-0.875, 1.41, 0.99], [-1.04, 1.40, 1.04], [-1.04, 1.33, 1.04]];
 const ARM_R = [[0.875, 1.48, 0.99], [0.875, 1.58, 0.99], [1.04, 1.62, 1.04], [1.04, 1.54, 1.04]];
+
+/* ---------- oriented glass: a rectangle in car space facing the driver ---------- */
+function norm3(v) { const l = Math.hypot(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; }
+function cross3(a, b) {
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+}
+function glassQuad(C, w, h, biasY) {
+  // normal points at the driver's eye, biased rearward like real mirror glass
+  const n = norm3([EYE.x - C[0], EYE.y - C[1] + biasY, EYE.z - C[2]]);
+  const u = norm3(cross3([0, 0, 1], n));
+  const v = cross3(n, u);
+  const q = (su, sv) => [C[0] + u[0] * su + v[0] * sv, C[1] + u[1] * su + v[1] * sv, C[2] + u[2] * su + v[2] * sv];
+  return [q(-w / 2, h / 2), q(w / 2, h / 2), q(w / 2, -h / 2), q(-w / 2, -h / 2)];  // TL TR BR BL
+}
 
 function drawCabin(ctx, cam) {
   CABIN.map(o => {
@@ -468,13 +483,16 @@ function drawCabin(ctx, cam) {
     }
     if (!behind) {
       const lw = 0.032 * cam.focal / Cw[2];
-      ctx.strokeStyle = "#10151b";
+      ctx.strokeStyle = "#0a0e13";
       ctx.lineWidth = lw;
       ctx.lineJoin = "round";
       ctx.beginPath();
       ctx.moveTo(rim[0][0], rim[0][1]);
       for (const [x, y] of rim) ctx.lineTo(x, y);
       ctx.closePath();
+      ctx.stroke();
+      ctx.strokeStyle = "#2c3641";           // rim highlight so it reads against the pod
+      ctx.lineWidth = Math.max(1, lw * 0.22);
       ctx.stroke();
       ctx.lineCap = "round";
       ctx.lineWidth = lw * 0.75;
@@ -497,51 +515,70 @@ function drawCabin(ctx, cam) {
   }
 }
 
-/* ---------- mirrors: billboards anchored to the cabin ---------- */
-function mirrorRect(cam, anchor, physW, ratio, minW, maxW, W, H) {
-  const p = camPt(cam, anchor[0], anchor[1], anchor[2]);
-  if (p[2] < 0.24) return null;
-  const w = Math.max(minW, Math.min(maxW, physW * cam.focal / p[2]));
-  const x = SX(cam, p), y = SY(cam, p);
-  if (x < -w || x > W + w || y < -w || y > H + w) return null;
-  return { x: x - w / 2, y: y - w * ratio / 2, w, h: w * ratio };
-}
+/* ---------- mirrors: real angled rectangles with texture-mapped glass ---------- */
+const texL = document.createElement("canvas"); texL.width = 300; texL.height = 195;
+const texR = document.createElement("canvas"); texR.width = 300; texR.height = 195;
+const texRV = document.createElement("canvas"); texRV.width = 460; texRV.height = 145;
 
-function drawMirror(ctx, r, pos, dirDeg, hFovDeg, opts = {}) {
-  const pad = Math.max(3, r.w * 0.035);
-  ctx.fillStyle = "#161c22";
-  ctx.beginPath();
-  ctx.roundRect(r.x - pad, r.y - pad, r.w + 2 * pad, r.h + 2 * pad, 10);
-  ctx.fill();
-  ctx.strokeStyle = "#3a444e";
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  const glass = new Path2D();
-  glass.roundRect(r.x, r.y, r.w, r.h, 7);
-  const focal = (r.w / 2) / Math.tan(hFovDeg / 2 * deg);
-  const cam = makeCam(pos, dirDeg, -1, focal, r.x + r.w / 2, r.y + r.h * 0.44);
-  ctx.save();
-  ctx.clip(glass);
-  renderWorld(ctx, cam, { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h }, { ownCar: opts.ownCar });
+function renderMirrorTex(tex, pos, dirDeg, hFovDeg, opts = {}) {
+  const tx = tex.getContext("2d");
+  tx.setTransform(1, 0, 0, 1, 0, 0);
+  const cam = makeCam(pos, dirDeg, -1, (tex.width / 2) / Math.tan(hFovDeg / 2 * deg),
+                      tex.width / 2, tex.height * 0.44);
+  renderWorld(tx, cam, { x0: 0, y0: 0, x1: tex.width, y1: tex.height }, { ownCar: opts.ownCar });
   if (opts.headrests) {                 // the rear-view sees a hint of your own cabin
-    ctx.fillStyle = "rgba(24,30,36,0.55)";
+    tx.fillStyle = "rgba(24,30,36,0.55)";
     for (const fx of [0.26, 0.62]) {
-      ctx.beginPath();
-      ctx.roundRect(r.x + r.w * fx, r.y + r.h * 0.84, r.w * 0.13, r.h * 0.3, 4);
-      ctx.fill();
+      tx.beginPath();
+      tx.roundRect(tex.width * fx, tex.height * 0.84, tex.width * 0.13, tex.height * 0.3, 6);
+      tx.fill();
     }
   }
-  const glare = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
+  const glare = tx.createLinearGradient(0, 0, tex.width, tex.height);
   glare.addColorStop(0, "rgba(255,255,255,0.14)");
   glare.addColorStop(0.28, "rgba(255,255,255,0.03)");
   glare.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = glare;
-  ctx.fillRect(r.x, r.y, r.w, r.h);
+  tx.fillStyle = glare;
+  tx.fillRect(0, 0, tex.width, tex.height);
+}
+
+/* project the glass quad, draw housing + mapped glass; returns screen bbox for drag */
+function drawGlassPanel(ctx, cam, quad, tex, W, H) {
+  const ps = quad.map(p => camPt(cam, ...p));
+  if (ps.some(p => p[2] <= 0.2)) return null;
+  const s = ps.map(p => [SX(cam, p), SY(cam, p)]);
+  const xs = s.map(q => q[0]), ys = s.map(q => q[1]);
+  const bb = { x: Math.min(...xs), y: Math.min(...ys) };
+  bb.w = Math.max(...xs) - bb.x;
+  bb.h = Math.max(...ys) - bb.y;
+  if (bb.w < 10 || bb.x > W + 40 || bb.x + bb.w < -40 || bb.y > H + 40) return null;
+  const cx = (xs[0] + xs[1] + xs[2] + xs[3]) / 4, cy = (ys[0] + ys[1] + ys[2] + ys[3]) / 4;
+  ctx.beginPath();                       // housing: the same shape, a little bigger
+  for (let i = 0; i < 4; i++) {
+    const hx = cx + (s[i][0] - cx) * 1.16, hy = cy + (s[i][1] - cy) * 1.22;
+    i ? ctx.lineTo(hx, hy) : ctx.moveTo(hx, hy);
+  }
+  ctx.closePath();
+  ctx.fillStyle = "#161c22";
+  ctx.fill();
+  ctx.strokeStyle = "#39434d";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  const glass = new Path2D();
+  glass.moveTo(s[0][0], s[0][1]);
+  for (let i = 1; i < 4; i++) glass.lineTo(s[i][0], s[i][1]);
+  glass.closePath();
+  ctx.save();
+  ctx.clip(glass);
+  ctx.transform((s[1][0] - s[0][0]) / tex.width, (s[1][1] - s[0][1]) / tex.width,
+                (s[3][0] - s[0][0]) / tex.height, (s[3][1] - s[0][1]) / tex.height,
+                s[0][0], s[0][1]);
+  ctx.drawImage(tex, 0, 0);
   ctx.restore();
   ctx.strokeStyle = "#0d1116";
   ctx.lineWidth = 1.5;
   ctx.stroke(glass);
+  return bb;
 }
 
 /* ---------- the dash screen: demo 04's top-down view, live ---------- */
@@ -691,37 +728,31 @@ function render(t) {
 
   renderWorld(ctx, cam, { x0: 0, y0: 0, x1: W, y1: H }, {});
 
-  // side mirrors live OUTSIDE: sail panel + arm + housing, drawn before the
-  // cabin so pillars and doors occlude them like anything else out the window
-  L.mLr = mirrorRect(cam, ML_A, 0.20, 0.64, 80, 0.15 * W, W, H);
-  if (L.mLr) {
-    poly(ctx, cam, SAIL_L, "#212930");
-    poly(ctx, cam, ARM_L, "#1a2127");
-    drawMirror(ctx, L.mLr, MIR_L, 270 - cfg.left, 2 * FOV.sideHalf, { ownCar: true });
-  }
-  L.mRr = mirrorRect(cam, MR_A, 0.20, 0.64, 80, 0.15 * W, W, H);
-  if (L.mRr) {
-    poly(ctx, cam, SAIL_R, "#212930");
-    poly(ctx, cam, ARM_R, "#1a2127");
-    drawMirror(ctx, L.mRr, MIR_R, 270 + cfg.right, 2 * FOV.sideHalf, { ownCar: true });
-  }
+  // side mirrors live OUTSIDE: sail panel + arm + angled housing, drawn before
+  // the cabin so pillars and doors occlude them like anything else out the window
+  renderMirrorTex(texL, MIR_L, 270 - cfg.left, 2 * FOV.sideHalf, { ownCar: true });
+  renderMirrorTex(texR, MIR_R, 270 + cfg.right, 2 * FOV.sideHalf, { ownCar: true });
+  poly(ctx, cam, SAIL_L, "#212930");
+  poly(ctx, cam, ARM_L, "#1a2127");
+  L.mLr = drawGlassPanel(ctx, cam, glassQuad(ML_C, 0.20, 0.13, -0.5), texL, W, H);
+  poly(ctx, cam, SAIL_R, "#212930");
+  poly(ctx, cam, ARM_R, "#1a2127");
+  L.mRr = drawGlassPanel(ctx, cam, glassQuad(MR_C, 0.20, 0.13, -0.5), texR, W, H);
 
   drawCabin(ctx, cam);
 
   // the rear-view lives INSIDE, hanging off the header — drawn over the cabin
-  L.rv = mirrorRect(cam, RV_A, 0.30, 0.32, 130, 0.24 * W, W, H);
-  if (L.rv) {
-    const s0 = camPt(cam, RV_A[0], RV_A[1], 1.34), s1 = camPt(cam, RV_A[0] - 0.02, RV_A[1] - 0.06, 1.40);
-    if (s0[2] > NEAR && s1[2] > NEAR) {
-      ctx.strokeStyle = "#161c22";
-      ctx.lineWidth = 7;
-      ctx.beginPath();
-      ctx.moveTo(SX(cam, s0), SY(cam, s0));
-      ctx.lineTo(SX(cam, s1), SY(cam, s1));
-      ctx.stroke();
-    }
-    drawMirror(ctx, L.rv, REARVIEW, 270, 2 * FOV.rearHalf, { headrests: true });
+  const s0 = camPt(cam, RV_C[0], RV_C[1], 1.33), s1 = camPt(cam, RV_C[0] - 0.02, RV_C[1] - 0.06, 1.40);
+  if (s0[2] > NEAR && s1[2] > NEAR) {
+    ctx.strokeStyle = "#161c22";
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(SX(cam, s0), SY(cam, s0));
+    ctx.lineTo(SX(cam, s1), SY(cam, s1));
+    ctx.stroke();
   }
+  renderMirrorTex(texRV, REARVIEW, 270, 2 * FOV.rearHalf, { headrests: true });
+  L.rv = drawGlassPanel(ctx, cam, glassQuad(RV_C, 0.27, 0.085, -0.9), texRV, W, H);
 
   // cabin vignette
   const vg = ctx.createRadialGradient(W / 2, H * 0.46, H * 0.35, W / 2, H * 0.5, H * 0.95);
